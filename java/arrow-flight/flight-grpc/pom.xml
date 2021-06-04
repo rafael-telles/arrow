@@ -105,7 +105,7 @@
           <execution>
             <id>test</id>
             <configuration>
-              <protoSourceRoot>${basedir}/src/test/protobuf</protoSourceRoot>
+              <protoSourceRoot>src/test/protobuf</protoSourceRoot>
               <outputDirectory>${project.build.directory}/generated-test-sources//protobuf</outputDirectory>
             </configuration>
             <goals>
