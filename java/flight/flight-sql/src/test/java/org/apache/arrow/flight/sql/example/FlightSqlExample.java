@@ -186,7 +186,6 @@ public class FlightSqlExample implements FlightSqlProducer, AutoCloseable {
   private final BufferAllocator rootAllocator = new RootAllocator();
   private final Cache<ByteString, StatementContext<PreparedStatement>> preparedStatementLoadingCache;
   private final Cache<ByteString, StatementContext<Statement>> statementLoadingCache;
-  private final SqlInfoBuilder sqlInfoBuilder;
 
   public FlightSqlExample(final Location location) {
     // TODO Constructor should not be doing work.
@@ -591,8 +590,7 @@ public class FlightSqlExample implements FlightSqlProducer, AutoCloseable {
     try {
       // Ownership of the connection will be passed to the context. Do NOT close!
       final Connection connection = dataSource.getConnection();
-      final Statement statement = connection.createStatement(
-          ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY);
+      final Statement statement = connection.createStatement();
       final String query = request.getQuery();
       final StatementContext<Statement> statementContext = new StatementContext<>(statement, query);
 
@@ -664,8 +662,7 @@ public class FlightSqlExample implements FlightSqlProducer, AutoCloseable {
       final ByteString preparedStatementHandle = copyFrom(randomUUID().toString().getBytes(StandardCharsets.UTF_8));
       // Ownership of the connection will be passed to the context. Do NOT close!
       final Connection connection = dataSource.getConnection();
-      final PreparedStatement preparedStatement = connection.prepareStatement(request.getQuery(),
-          ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY);
+      final PreparedStatement preparedStatement = connection.prepareStatement(request.getQuery());
       final StatementContext<PreparedStatement> preparedStatementContext =
           new StatementContext<>(preparedStatement, request.getQuery());
 
