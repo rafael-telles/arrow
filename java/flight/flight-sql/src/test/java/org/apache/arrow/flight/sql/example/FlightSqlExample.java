@@ -96,6 +96,7 @@ import org.apache.arrow.flight.sql.impl.FlightSql.CommandPreparedStatementQuery;
 import org.apache.arrow.flight.sql.impl.FlightSql.CommandPreparedStatementUpdate;
 import org.apache.arrow.flight.sql.impl.FlightSql.CommandStatementQuery;
 import org.apache.arrow.flight.sql.impl.FlightSql.CommandStatementUpdate;
+import org.apache.arrow.flight.sql.impl.FlightSql.SqlSupportedCaseSensitivity;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
@@ -132,7 +133,9 @@ import org.apache.arrow.vector.VectorLoader;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.VectorUnloader;
 import org.apache.arrow.vector.complex.DenseUnionVector;
-import org.apache.arrow.vector.holders.NullableIntHolder;
+import org.apache.arrow.vector.holders.NullableBigIntHolder;
+import org.apache.arrow.vector.holders.NullableBitHolder;
+import org.apache.arrow.vector.holders.NullableUInt4Holder;
 import org.apache.arrow.vector.holders.NullableVarCharHolder;
 import org.apache.arrow.vector.ipc.message.IpcOption;
 import org.apache.arrow.vector.ipc.message.MessageSerializer;
@@ -305,7 +308,7 @@ public class FlightSqlExample implements FlightSqlProducer, AutoCloseable {
         });
   }
 
-  private static void saveToVector(final byte typeRegisteredId, final Integer data,
+  private static void saveToVector(final byte typeRegisteredId, final boolean data,
                                    final DenseUnionVector vector, final int index) {
     vectorConsumer(
         data,
@@ -314,7 +317,24 @@ public class FlightSqlExample implements FlightSqlProducer, AutoCloseable {
           // Nothing.
         },
         (theData, fieldVector) -> {
-          final NullableIntHolder holder = new NullableIntHolder();
+          final NullableBitHolder holder = new NullableBitHolder();
+          holder.value = data ? 1 : 0;
+          holder.isSet = 1;
+          fieldVector.setTypeId(index, typeRegisteredId);
+          fieldVector.setSafe(index, holder);
+        });
+  }
+
+  private static void saveToVector(final byte typeRegisteredId, final Long data,
+                                   final DenseUnionVector vector, final int index) {
+    vectorConsumer(
+        data,
+        vector,
+        fieldVector -> {
+          // Nothing.
+        },
+        (theData, fieldVector) -> {
+          final NullableBigIntHolder holder = new NullableBigIntHolder();
           holder.value = isNull(data) ? 0 : data;
           holder.isSet = 1;
           fieldVector.setTypeId(index, typeRegisteredId);
@@ -550,12 +570,17 @@ public class FlightSqlExample implements FlightSqlProducer, AutoCloseable {
     valueVector.initializeChildrenFromFields(
         ImmutableList.of(
             new Field("string_value", FieldType.nullable(MinorType.VARCHAR.getType()), null),
-            new Field("int_value", FieldType.nullable(MinorType.INT.getType()), null),
+            new Field("bool_value", FieldType.nullable(MinorType.BIT.getType()), null),
             new Field("bigint_value", FieldType.nullable(MinorType.BIGINT.getType()), null),
-            new Field("int32_bitmask", FieldType.nullable(MinorType.INT.getType()), null)));
+            new Field("int32_bitmask", FieldType.nullable(MinorType.INT.getType()), null),
+            new Field(
+                "string_list",
+                FieldType.nullable(MinorType.LIST.getType()),
+                singletonList(Field.nullable("string_data", MinorType.VARCHAR.getType())))));
     final List<FieldVector> vectors = ImmutableList.of(infoNameVector, valueVector);
     final byte stringValueId = 0;
-    final byte intValueId = 1;
+    final byte boolValueId = 1;
+    final byte bigIntId = 2;
     vectors.forEach(FieldVector::allocateNew);
     final int rows = requestedInfo.length;
     for (int index = 0; index < rows; index++) {
@@ -573,30 +598,40 @@ public class FlightSqlExample implements FlightSqlProducer, AutoCloseable {
           saveToVector(stringValueId, metaData.getDriverVersion(), valueVector, index);
           break;
         case FlightSql.SqlInfo.FLIGHT_SQL_SERVER_READ_ONLY_VALUE:
-          saveToVector(intValueId, metaData.isReadOnly() ? 1 : 0, valueVector, index);
+          saveToVector(boolValueId, metaData.isReadOnly(), valueVector, index);
           break;
         case FlightSql.SqlInfo.SQL_DDL_CATALOG_VALUE:
-          saveToVector(intValueId, metaData.supportsCatalogsInDataManipulation() ? 1 : 0, valueVector, index);
+          saveToVector(boolValueId, metaData.supportsCatalogsInDataManipulation(), valueVector, index);
           break;
         case FlightSql.SqlInfo.SQL_DDL_SCHEMA_VALUE:
-          saveToVector(intValueId, metaData.supportsSchemasInDataManipulation() ? 1 : 0, valueVector, index);
+          saveToVector(boolValueId, metaData.supportsSchemasInDataManipulation(), valueVector, index);
           break;
         case FlightSql.SqlInfo.SQL_DDL_TABLE_VALUE:
-          saveToVector(intValueId, metaData.allTablesAreSelectable() ? 1 : 0, valueVector, index);
+          saveToVector(boolValueId, metaData.allTablesAreSelectable(), valueVector, index);
           break;
         case FlightSql.SqlInfo.SQL_IDENTIFIER_CASE_VALUE:
           saveToVector(
-              stringValueId, metaData.storesMixedCaseIdentifiers() ? "CASE_INSENSITIVE" :
-                  metaData.storesUpperCaseIdentifiers() ? "UPPERCASE" :
-                      metaData.storesLowerCaseIdentifiers() ? "LOWERCASE" : "UNKNOWN", valueVector, index);
+              bigIntId,
+              (long) (metaData.storesMixedCaseIdentifiers() ?
+                  SqlSupportedCaseSensitivity.SQL_CASE_SENSITIVITY_CASE_INSENSITIVE_VALUE :
+                  metaData.storesUpperCaseIdentifiers() ?
+                      SqlSupportedCaseSensitivity.SQL_CASE_SENSITIVITY_UPPERCASE_VALUE :
+                      metaData.storesLowerCaseIdentifiers() ?
+                          SqlSupportedCaseSensitivity.SQL_CASE_SENSITIVITY_LOWERCASE_VALUE :
+                          SqlSupportedCaseSensitivity.SQL_CASE_SENSITIVITY_UNKNOWN_VALUE), valueVector, index);
           break;
         case FlightSql.SqlInfo.SQL_IDENTIFIER_QUOTE_CHAR_VALUE:
           saveToVector(stringValueId, metaData.getIdentifierQuoteString(), valueVector, index);
           break;
         case FlightSql.SqlInfo.SQL_QUOTED_IDENTIFIER_CASE_VALUE:
-          saveToVector(stringValueId, metaData.storesMixedCaseQuotedIdentifiers() ? "CASE_INSENSITIVE" :
-              metaData.storesUpperCaseQuotedIdentifiers() ? "UPPERCASE" :
-                  metaData.storesLowerCaseQuotedIdentifiers() ? "LOWERCASE" : "UNKNOWN", valueVector, index);
+          saveToVector(
+              bigIntId, (long) (metaData.storesMixedCaseQuotedIdentifiers() ?
+                  SqlSupportedCaseSensitivity.SQL_CASE_SENSITIVITY_CASE_INSENSITIVE_VALUE :
+                  metaData.storesUpperCaseQuotedIdentifiers() ?
+                      SqlSupportedCaseSensitivity.SQL_CASE_SENSITIVITY_UPPERCASE_VALUE :
+                      metaData.storesLowerCaseQuotedIdentifiers() ?
+                          SqlSupportedCaseSensitivity.SQL_CASE_SENSITIVITY_LOWERCASE_VALUE :
+                          SqlSupportedCaseSensitivity.SQL_CASE_SENSITIVITY_UNKNOWN_VALUE), valueVector, index);
           break;
         default:
           throw CallStatus.INVALID_ARGUMENT.withDescription("Provided option is unknown.").toRuntimeException();
@@ -1367,9 +1402,9 @@ public class FlightSqlExample implements FlightSqlProducer, AutoCloseable {
              requestedInfo)) {
       listener.start(vectorSchemaRoot);
       listener.putNext();
-    } catch (SQLException e) {
-      LOGGER.error(format("Failed to getStreamSqlInfo: <%s>.", e.getMessage()), e);
-      listener.error(e);
+    } catch (final Throwable t) {
+      LOGGER.error(format("Failed to getStreamSqlInfo: <%s>.", t.getMessage()), t);
+      listener.error(t);
     } finally {
       listener.completed();
     }
