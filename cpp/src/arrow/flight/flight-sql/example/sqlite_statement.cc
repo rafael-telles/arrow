@@ -46,7 +46,7 @@ Status SqliteStatement::Create(sqlite3* db, const std::string& sql,
                                std::shared_ptr<SqliteStatement>* result) {
   sqlite3_stmt* stmt;
   int rc =
-      sqlite3_prepare_v2(db, sql.c_str(), static_cast<int>(sql.length()), &stmt, NULLPTR);
+      sqlite3_prepare_v2(db, sql.c_str(), static_cast<int>(sql.size()), &stmt, NULLPTR);
 
   if (rc != SQLITE_OK) {
     sqlite3_finalize(stmt);
@@ -77,6 +77,15 @@ SqliteStatement::~SqliteStatement() { sqlite3_finalize(stmt_); }
 Status SqliteStatement::Step(int* rc) {
   *rc = sqlite3_step(stmt_);
   if (*rc == SQLITE_ERROR) {
+    return Status::RError("A SQLite runtime error has occurred: ", sqlite3_errmsg(db_));
+  }
+
+  return Status::OK();
+}
+
+Status SqliteStatement::Reset(int& rc) {
+  rc = sqlite3_reset(stmt_);
+  if (rc == SQLITE_ERROR) {
     return Status::RError("A SQLite runtime error has occurred: ", sqlite3_errmsg(db_));
   }
 

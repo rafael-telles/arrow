@@ -22,22 +22,30 @@
 #include "arrow/api.h"
 #include "arrow/flight/flight-sql/example/sqlite_statement.h"
 
-#define STRING_BUILDER_CASE(TYPE_CLASS, STMT, COLUMN)                         \
-  case TYPE_CLASS##Type::type_id: {                                           \
-    int bytes = sqlite3_column_bytes(STMT, COLUMN);                           \
-    const unsigned char* string = sqlite3_column_text(STMT, COLUMN);          \
-    ARROW_RETURN_NOT_OK(                                                      \
-        (dynamic_cast<TYPE_CLASS##Builder&>(builder)).Append(string, bytes)); \
-    break;                                                                    \
+#define STRING_BUILDER_CASE(TYPE_CLASS, STMT, COLUMN)                                  \
+  case TYPE_CLASS##Type::type_id: {                                                    \
+    int bytes = sqlite3_column_bytes(STMT, COLUMN);                                    \
+    const unsigned char* string = sqlite3_column_text(STMT, COLUMN);                   \
+    if (string == nullptr) {                                                           \
+      ARROW_RETURN_NOT_OK((dynamic_cast<TYPE_CLASS##Builder&>(builder)).AppendNull()); \
+      break;                                                                           \
+    }                                                                                  \
+    ARROW_RETURN_NOT_OK(                                                               \
+        (dynamic_cast<TYPE_CLASS##Builder&>(builder)).Append(string, bytes));          \
+    break;                                                                             \
   }
 
-#define BINARY_BUILDER_CASE(TYPE_CLASS, STMT, COLUMN)                              \
-  case TYPE_CLASS##Type::type_id: {                                                \
-    int bytes = sqlite3_column_bytes(STMT, COLUMN);                                \
-    const void* blob = sqlite3_column_blob(STMT, COLUMN);                          \
-    ARROW_RETURN_NOT_OK(                                                           \
-        (dynamic_cast<TYPE_CLASS##Builder&>(builder)).Append((char*)blob, bytes)); \
-    break;                                                                         \
+#define BINARY_BUILDER_CASE(TYPE_CLASS, STMT, COLUMN)                                  \
+  case TYPE_CLASS##Type::type_id: {                                                    \
+    int bytes = sqlite3_column_bytes(STMT, COLUMN);                                    \
+    const void* blob = sqlite3_column_blob(STMT, COLUMN);                              \
+    if (blob == nullptr) {                                                             \
+      ARROW_RETURN_NOT_OK((dynamic_cast<TYPE_CLASS##Builder&>(builder)).AppendNull()); \
+      break;                                                                           \
+    }                                                                                  \
+    ARROW_RETURN_NOT_OK(                                                               \
+        (dynamic_cast<TYPE_CLASS##Builder&>(builder)).Append((char*)blob, bytes));     \
+    break;                                                                             \
   }
 
 #define INT_BUILDER_CASE(TYPE_CLASS, STMT, COLUMN)                                    \
@@ -64,8 +72,11 @@ namespace example {
 std::shared_ptr<Schema> SqliteStatementBatchReader::schema() const { return schema_; }
 
 SqliteStatementBatchReader::SqliteStatementBatchReader(
-    std::shared_ptr<SqliteStatement> statement, std::shared_ptr<Schema> schema, int rc)
-    : statement_(std::move(statement)), schema_(std::move(schema)), rc_(rc) {}
+    std::shared_ptr<SqliteStatement> statement,
+    std::shared_ptr<Schema> schema)
+      : statement_(std::move(statement)), schema_(std::move(schema)) {
+  rc = SQLITE_OK;
+}
 
 Status SqliteStatementBatchReader::Create(
     const std::shared_ptr<SqliteStatement>& statement_,
@@ -76,7 +87,16 @@ Status SqliteStatementBatchReader::Create(
   std::shared_ptr<Schema> schema;
   ARROW_RETURN_NOT_OK(statement_->GetSchema(&schema));
 
-  result->reset(new SqliteStatementBatchReader(statement_, schema, rc));
+  result->reset(new SqliteStatementBatchReader(statement_, schema));
+
+  return Status::OK();
+}
+
+Status SqliteStatementBatchReader::Create(
+    const std::shared_ptr<SqliteStatement> &statement_,
+    const std::shared_ptr<Schema> &schema,
+    std::shared_ptr<SqliteStatementBatchReader> *result) {
+  result->reset(new SqliteStatementBatchReader(statement_, schema));
 
   return Status::OK();
 }
@@ -94,8 +114,14 @@ Status SqliteStatementBatchReader::ReadNext(std::shared_ptr<RecordBatch>* out) {
     ARROW_RETURN_NOT_OK(MakeBuilder(default_memory_pool(), field_type, &builders[i]));
   }
 
+  if (!already_executed) {
+    ARROW_RETURN_NOT_OK(statement_->Reset(rc));
+    ARROW_RETURN_NOT_OK(statement_->Step(&rc));
+    already_executed = true;
+  }
+
   int rows = 0;
-  while (rows < MAX_BATCH_SIZE && rc_ == SQLITE_ROW) {
+  while (rows < MAX_BATCH_SIZE && rc == SQLITE_ROW) {
     rows++;
     for (int i = 0; i < num_fields; i++) {
       const std::shared_ptr<Field>& field = schema_->field(i);
@@ -124,7 +150,7 @@ Status SqliteStatementBatchReader::ReadNext(std::shared_ptr<RecordBatch>* out) {
       }
     }
 
-    ARROW_RETURN_NOT_OK(statement_->Step(&rc_));
+    ARROW_RETURN_NOT_OK(statement_->Step(&rc));
   }
 
   if (rows > 0) {
