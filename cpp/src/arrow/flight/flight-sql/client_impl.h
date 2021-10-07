@@ -21,6 +21,8 @@
 #include <google/protobuf/any.pb.h>
 #include <google/protobuf/message_lite.h>
 
+#include <utility>
+
 namespace pb = arrow::flight::protocol;
 
 namespace arrow {
@@ -34,7 +36,23 @@ FlightSqlClientT<T>::FlightSqlClientT(std::unique_ptr<T>& client) {
 }
 
 template <class T>
+PreparedStatementT<T>::PreparedStatementT(
+    T* client_, const std::string& query,
+    pb::sql::ActionCreatePreparedStatementResult& prepared_statement_result_,
+    const FlightCallOptions& options_)
+    : client(client_),
+      prepared_statement_result(std::move(prepared_statement_result_)),
+      options(options_) {
+  is_closed = false;
+}
+
+template <class T>
 FlightSqlClientT<T>::~FlightSqlClientT() = default;
+
+template <class T>
+PreparedStatementT<T>::~PreparedStatementT<T>() {
+  Close();
+}
 
 inline FlightDescriptor GetFlightDescriptorForCommand(
     const google::protobuf::Message& command) {
@@ -220,6 +238,91 @@ template <class T>
 Status FlightSqlClientT<T>::DoGet(const FlightCallOptions& options, const Ticket& ticket,
                                   std::unique_ptr<FlightStreamReader>* stream) const {
   return client->DoGet(options, ticket, stream);
+}
+
+template <class T>
+Status FlightSqlClientT<T>::Prepare(
+    const FlightCallOptions& options, const std::string& query,
+    std::shared_ptr<PreparedStatementT<T>>* prepared_statement) {
+  google::protobuf::Any command;
+  pb::sql::ActionCreatePreparedStatementRequest request;
+  request.set_query(query);
+  command.PackFrom(request);
+
+  Action action;
+  action.type = "CreatePreparedStatement";
+  action.body = Buffer::FromString(command.SerializeAsString());
+
+  std::unique_ptr<ResultStream> results;
+
+  ARROW_RETURN_NOT_OK(client->DoAction(options, action, &results));
+
+  std::unique_ptr<Result> result;
+  ARROW_RETURN_NOT_OK(results->Next(&result));
+
+  google::protobuf::Any prepared_result;
+
+  std::shared_ptr<Buffer> message = std::move(result->body);
+
+  prepared_result.ParseFromArray(message->data(), static_cast<int>(message->size()));
+
+  pb::sql::ActionCreatePreparedStatementResult prepared_statement_result;
+
+  prepared_result.UnpackTo(&prepared_statement_result);
+
+  prepared_statement->reset(new PreparedStatementT<T>(client.get(), query, prepared_statement_result, options));
+
+  return Status::OK();
+}
+
+template <class T>
+Status PreparedStatementT<T>::Execute(std::unique_ptr<FlightInfo>* info) {
+  if (is_closed) {
+    return Status::Invalid("Statement already closed.");
+  }
+
+  pb::sql::CommandPreparedStatementQuery execute_query_command;
+
+  execute_query_command.set_prepared_statement_handle(
+      prepared_statement_result.prepared_statement_handle());
+
+  google::protobuf::Any any;
+  any.PackFrom(execute_query_command);
+
+  const std::string& string = any.SerializeAsString();
+  const FlightDescriptor& descriptor = FlightDescriptor::Command(string);
+
+  return client->GetFlightInfo(options, descriptor, info);
+}
+
+template <class T>
+bool PreparedStatementT<T>::IsClosed() const {
+  return is_closed;
+}
+
+template <class T>
+Status PreparedStatementT<T>::Close() {
+  if (is_closed) {
+    return Status::Invalid("Statement already closed.");
+  }
+  google::protobuf::Any command;
+  pb::sql::ActionClosePreparedStatementRequest request;
+  request.set_prepared_statement_handle(
+      prepared_statement_result.prepared_statement_handle());
+
+  command.PackFrom(request);
+
+  Action action;
+  action.type = "ClosePreparedStatement";
+  action.body = Buffer::FromString(command.SerializeAsString());
+
+  std::unique_ptr<ResultStream> results;
+
+  ARROW_RETURN_NOT_OK(client->DoAction(options, action, &results));
+
+  is_closed = true;
+
+  return Status::OK();
 }
 
 }  // namespace internal

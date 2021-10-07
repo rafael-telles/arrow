@@ -16,7 +16,6 @@
 // under the License.
 
 #include <sqlite3.h>
-
 #include <sstream>
 
 #include "arrow/api.h"
