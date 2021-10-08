@@ -18,6 +18,9 @@
 #include <arrow/buffer.h>
 #include <arrow/flight/flight-sql/FlightSql.pb.h>
 #include <arrow/flight/types.h>
+#include <arrow/io/memory.h>
+#include <arrow/ipc/reader.h>
+#include <arrow/testing/gtest_util.h>
 #include <google/protobuf/any.pb.h>
 #include <google/protobuf/message_lite.h>
 
@@ -271,7 +274,8 @@ Status FlightSqlClientT<T>::Prepare(
 
   prepared_result.UnpackTo(&prepared_statement_result);
 
-  prepared_statement->reset(new PreparedStatementT<T>(client.get(), query, prepared_statement_result, options));
+  prepared_statement->reset(
+      new PreparedStatementT<T>(client.get(), query, prepared_statement_result, options));
 
   return Status::OK();
 }
@@ -291,14 +295,59 @@ Status PreparedStatementT<T>::Execute(std::unique_ptr<FlightInfo>* info) {
   any.PackFrom(execute_query_command);
 
   const std::string& string = any.SerializeAsString();
-  const FlightDescriptor& descriptor = FlightDescriptor::Command(string);
+  const FlightDescriptor descriptor = FlightDescriptor::Command(string);
+
+  if (parameter_binding && parameter_binding->num_rows() > 0) {
+    std::unique_ptr<FlightStreamWriter> writer;
+    std::unique_ptr<FlightMetadataReader> reader;
+    client->DoPut(options, descriptor, parameter_binding->schema(), &writer, &reader);
+
+    ARROW_RETURN_NOT_OK(writer->WriteRecordBatch(*parameter_binding));
+    ARROW_RETURN_NOT_OK(writer->DoneWriting());
+    // Wait for the server to ack the result
+    std::shared_ptr<Buffer> buffer;
+    ARROW_RETURN_NOT_OK(reader->ReadMetadata(&buffer));
+  }
 
   return client->GetFlightInfo(options, descriptor, info);
 }
 
 template <class T>
+Status PreparedStatementT<T>::SetParameters(std::shared_ptr<RecordBatch> parameter_binding_) {
+  parameter_binding = std::move(parameter_binding_);
+
+  return Status::OK();
+}
+
+template <class T>
 bool PreparedStatementT<T>::IsClosed() const {
   return is_closed;
+}
+
+template <class T>
+Status PreparedStatementT<T>::GetResultSetSchema(std::shared_ptr<Schema> *schema) {
+  auto &args = prepared_statement_result.dataset_schema();
+  std::shared_ptr<Buffer> schema_buffer = std::make_shared<Buffer>(args);
+
+  io::BufferReader reader(schema_buffer);
+
+  ipc::DictionaryMemo in_memo;
+  ARROW_ASSIGN_OR_RAISE(*schema, ReadSchema(&reader, &in_memo))
+
+  return Status::OK();
+}
+
+template <class T>
+Status PreparedStatementT<T>::GetParameterSchema(std::shared_ptr<Schema>* schema) {
+  auto &args = prepared_statement_result.parameter_schema();
+  std::shared_ptr<Buffer> schema_buffer = std::make_shared<Buffer>(args);
+
+  io::BufferReader reader(schema_buffer);
+
+  ipc::DictionaryMemo in_memo;
+  ARROW_ASSIGN_OR_RAISE(*schema, ReadSchema(&reader, &in_memo))
+
+  return Status::OK();
 }
 
 template <class T>
