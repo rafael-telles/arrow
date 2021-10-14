@@ -147,7 +147,7 @@ dim.arrow_dplyr_query <- function(x) {
   if (is_collapsed(x)) {
     # Don't evaluate just for nrow
     rows <- NA_integer_
-  } else if (isTRUE(x$filtered)) {
+  } else if (isTRUE(x$filtered_rows)) {
     rows <- x$.data$num_rows
   } else {
     rows <- Scanner$create(x)$CountRows()
@@ -235,3 +235,8 @@ source_data <- function(x) {
 }
 
 is_collapsed <- function(x) inherits(x$.data, "arrow_dplyr_query")
+
+has_aggregation <- function(x) {
+  # TODO: update with joins (check right side data too)
+  !is.null(x$aggregations) || (is_collapsed(x) && has_aggregation(x$.data))
+}

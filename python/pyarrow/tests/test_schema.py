@@ -137,6 +137,7 @@ def test_type_for_alias():
         ('duration[ms]', pa.duration('ms')),
         ('duration[us]', pa.duration('us')),
         ('duration[ns]', pa.duration('ns')),
+        ('month_day_nano_interval', pa.month_day_nano_interval()),
     ]
 
     for val, expected in cases:
@@ -712,6 +713,10 @@ def test_schema_merge():
 
     with pytest.raises(pa.ArrowInvalid):
         pa.unify_schemas([b, d])
+
+    # ARROW-14002: Try with tuple instead of list
+    result = pa.unify_schemas((a, b, c))
+    assert result.equals(expected)
 
 
 def test_undecodable_metadata():

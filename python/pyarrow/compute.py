@@ -30,6 +30,7 @@ from pyarrow._compute import (  # noqa
     VectorKernel,
     # Option classes
     ArraySortOptions,
+    AssumeTimezoneOptions,
     CastOptions,
     CountOptions,
     DayOfWeekOptions,
@@ -39,16 +40,19 @@ from pyarrow._compute import (  # noqa
     FilterOptions,
     IndexOptions,
     JoinOptions,
+    MakeStructOptions,
     MatchSubstringOptions,
     ModeOptions,
+    NullOptions,
     PadOptions,
     PartitionNthOptions,
-    MakeStructOptions,
-    NullOptions,
     QuantileOptions,
     ReplaceSliceOptions,
     ReplaceSubstringOptions,
+    RoundOptions,
+    RoundToMultipleOptions,
     ScalarAggregateOptions,
+    SelectKOptions,
     SetLookupOptions,
     SliceOptions,
     SortOptions,
@@ -60,9 +64,10 @@ from pyarrow._compute import (  # noqa
     TDigestOptions,
     TrimOptions,
     VarianceOptions,
+    WeekOptions,
     # Functions
-    function_registry,
     call_function,
+    function_registry,
     get_function,
     list_functions,
 )
@@ -128,11 +133,15 @@ def _decorate_compute_function(wrapper, exposed_name, func, option_class):
     if option_class is not None:
         doc_pieces.append("""\
             options : pyarrow.compute.{0}, optional
-                Parameters altering compute function semantics
-            **kwargs : optional
-                Parameters for {0} constructor. Either `options`
-                or `**kwargs` can be passed, but not both at the same time.
+                Parameters altering compute function semantics.
             """.format(option_class.__name__))
+        options_sig = inspect.signature(option_class)
+        for p in options_sig.parameters.values():
+            doc_pieces.append("""\
+            {0} : optional
+                Parameter for {1} constructor. Either `options`
+                or `{0}` can be passed, but not both at the same time.
+            """.format(p.name, option_class.__name__))
 
     wrapper.__doc__ = "".join(dedent(s) for s in doc_pieces)
     return wrapper
@@ -310,13 +319,16 @@ def count_substring(array, pattern, *, ignore_case=False):
     array : pyarrow.Array or pyarrow.ChunkedArray
     pattern : str
         pattern to search for exact matches
+    ignore_case : bool, default False
+        Ignore case while searching.
 
     Returns
     -------
     result : pyarrow.Array or pyarrow.ChunkedArray
     """
     return call_function("count_substring", [array],
-                         MatchSubstringOptions(pattern, ignore_case))
+                         MatchSubstringOptions(pattern,
+                                               ignore_case=ignore_case))
 
 
 def count_substring_regex(array, pattern, *, ignore_case=False):
@@ -329,13 +341,16 @@ def count_substring_regex(array, pattern, *, ignore_case=False):
     array : pyarrow.Array or pyarrow.ChunkedArray
     pattern : str
         pattern to search for exact matches
+    ignore_case : bool, default False
+        Ignore case while searching.
 
     Returns
     -------
     result : pyarrow.Array or pyarrow.ChunkedArray
     """
     return call_function("count_substring_regex", [array],
-                         MatchSubstringOptions(pattern, ignore_case))
+                         MatchSubstringOptions(pattern,
+                                               ignore_case=ignore_case))
 
 
 def find_substring(array, pattern, *, ignore_case=False):
@@ -356,7 +371,8 @@ def find_substring(array, pattern, *, ignore_case=False):
     result : pyarrow.Array or pyarrow.ChunkedArray
     """
     return call_function("find_substring", [array],
-                         MatchSubstringOptions(pattern, ignore_case))
+                         MatchSubstringOptions(pattern,
+                                               ignore_case=ignore_case))
 
 
 def find_substring_regex(array, pattern, *, ignore_case=False):
@@ -377,7 +393,8 @@ def find_substring_regex(array, pattern, *, ignore_case=False):
     result : pyarrow.Array or pyarrow.ChunkedArray
     """
     return call_function("find_substring_regex", [array],
-                         MatchSubstringOptions(pattern, ignore_case))
+                         MatchSubstringOptions(pattern,
+                                               ignore_case=ignore_case))
 
 
 def match_like(array, pattern, *, ignore_case=False):
@@ -402,7 +419,8 @@ def match_like(array, pattern, *, ignore_case=False):
 
     """
     return call_function("match_like", [array],
-                         MatchSubstringOptions(pattern, ignore_case))
+                         MatchSubstringOptions(pattern,
+                                               ignore_case=ignore_case))
 
 
 def match_substring(array, pattern, *, ignore_case=False):
@@ -422,7 +440,8 @@ def match_substring(array, pattern, *, ignore_case=False):
     result : pyarrow.Array or pyarrow.ChunkedArray
     """
     return call_function("match_substring", [array],
-                         MatchSubstringOptions(pattern, ignore_case))
+                         MatchSubstringOptions(pattern,
+                                               ignore_case=ignore_case))
 
 
 def match_substring_regex(array, pattern, *, ignore_case=False):
@@ -442,18 +461,21 @@ def match_substring_regex(array, pattern, *, ignore_case=False):
     result : pyarrow.Array or pyarrow.ChunkedArray
     """
     return call_function("match_substring_regex", [array],
-                         MatchSubstringOptions(pattern, ignore_case))
+                         MatchSubstringOptions(pattern,
+                                               ignore_case=ignore_case))
 
 
-def mode(array, n=1, skip_nulls=True, min_count=0):
+def mode(array, n=1, *, skip_nulls=True, min_count=0):
     """
     Return top-n most common values and number of times they occur in a passed
-    numerical (chunked) array, in descending order of occurance. If there are
-    more than one values with same count, smaller one is returned first.
+    numerical (chunked) array, in descending order of occurrence. If there are
+    multiple values with same count, the smaller one is returned first.
 
     Parameters
     ----------
     array : pyarrow.Array or pyarrow.ChunkedArray
+    n : int, default 1
+        Specify the top-n values.
     skip_nulls : bool, default True
         If True, ignore nulls in the input. Else return an empty array
         if any input is null.
@@ -476,7 +498,7 @@ def mode(array, n=1, skip_nulls=True, min_count=0):
     >>> modes[1]
     <pyarrow.StructScalar: {'mode': 1, 'count': 2}>
     """
-    options = ModeOptions(n=n, skip_nulls=skip_nulls, min_count=min_count)
+    options = ModeOptions(n, skip_nulls=skip_nulls, min_count=min_count)
     return call_function("mode", [array], options)
 
 
@@ -534,6 +556,8 @@ def index(data, value, start=None, end=None, *, memory_pool=None):
     value : Scalar-like object
     start : int, optional
     end : int, optional
+    memory_pool : MemoryPool, optional
+        If not passed, will allocate memory from the default memory pool.
 
     Returns
     -------
@@ -576,6 +600,8 @@ def take(data, indices, *, boundscheck=True, memory_pool=None):
     boundscheck : boolean, default True
         Whether to boundscheck the indices. If False and there is an out of
         bounds index, will likely cause the process to crash.
+    memory_pool : MemoryPool, optional
+        If not passed, will allocate memory from the default memory pool.
 
     Returns
     -------
@@ -609,10 +635,10 @@ def fill_null(values, fill_value):
 
     Parameters
     ----------
-    data : Array, ChunkedArray, or Scalar-like object
+    values : Array, ChunkedArray, or Scalar-like object
         Each null element is replaced with the corresponding value
         from fill_value.
-    fill_value: Array, ChunkedArray, or Scalar-like object
+    fill_value : Array, ChunkedArray, or Scalar-like object
         If not same type as data will attempt to cast.
 
     Returns
@@ -639,3 +665,95 @@ def fill_null(values, fill_value):
         fill_value = pa.scalar(fill_value.as_py(), type=values.type)
 
     return call_function("coalesce", [values, fill_value])
+
+
+def top_k_unstable(values, k, sort_keys=None, *, memory_pool=None):
+    """
+    Select the indices of the top-k ordered elements from array- or table-like
+    data.
+
+    This is a specialization for :func:`select_k_unstable`. Output is not
+    guaranteed to be stable.
+
+    Parameters
+    ----------
+    values : Array, ChunkedArray, RecordBatch, or Table
+        Data to sort and get top indices from.
+    k : int
+        The number of `k` elements to keep.
+    sort_keys : List-like
+        Column key names to order by when input is table-like data.
+    memory_pool : MemoryPool, optional
+        If not passed, will allocate memory from the default memory pool.
+
+    Returns
+    -------
+    result : Array of indices
+
+    Examples
+    --------
+    >>> import pyarrow as pa
+    >>> import pyarrow.compute as pc
+    >>> arr = pa.array(["a", "b", "c", None, "e", "f"])
+    >>> pc.top_k_unstable(arr, k=3)
+    <pyarrow.lib.UInt64Array object at 0x7fdcb19d7f30>
+    [
+      5,
+      4,
+      2
+    ]
+    """
+    if sort_keys is None:
+        sort_keys = []
+    if isinstance(values, (pa.Array, pa.ChunkedArray)):
+        sort_keys.append(("dummy", "descending"))
+    else:
+        sort_keys = map(lambda key_name: (key_name, "descending"), sort_keys)
+    options = SelectKOptions(k, sort_keys)
+    return call_function("select_k_unstable", [values], options, memory_pool)
+
+
+def bottom_k_unstable(values, k, sort_keys=None, *, memory_pool=None):
+    """
+    Select the indices of the bottom-k ordered elements from
+    array- or table-like data.
+
+    This is a specialization for :func:`select_k_unstable`. Output is not
+    guaranteed to be stable.
+
+    Parameters
+    ----------
+    values : Array, ChunkedArray, RecordBatch, or Table
+        Data to sort and get bottom indices from.
+    k : int
+        The number of `k` elements to keep.
+    sort_keys : List-like
+        Column key names to order by when input is table-like data.
+    memory_pool : MemoryPool, optional
+        If not passed, will allocate memory from the default memory pool.
+
+    Returns
+    -------
+    result : Array of indices
+
+    Examples
+    --------
+    >>> import pyarrow as pa
+    >>> import pyarrow.compute as pc
+    >>> arr = pa.array(["a", "b", "c", None, "e", "f"])
+    >>> pc.bottom_k_unstable(arr, k=3)
+    <pyarrow.lib.UInt64Array object at 0x7fdcb19d7fa0>
+    [
+      0,
+      1,
+      2
+    ]
+    """
+    if sort_keys is None:
+        sort_keys = []
+    if isinstance(values, (pa.Array, pa.ChunkedArray)):
+        sort_keys.append(("dummy", "ascending"))
+    else:
+        sort_keys = map(lambda key_name: (key_name, "ascending"), sort_keys)
+    options = SelectKOptions(k, sort_keys)
+    return call_function("select_k_unstable", [values], options, memory_pool)

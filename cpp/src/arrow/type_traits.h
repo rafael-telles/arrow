@@ -221,6 +221,7 @@ struct TypeTraits<DayTimeIntervalType> {
   using ArrayType = DayTimeIntervalArray;
   using BuilderType = DayTimeIntervalBuilder;
   using ScalarType = DayTimeIntervalScalar;
+  using CType = DayTimeIntervalType::c_type;
 
   static constexpr int64_t bytes_required(int64_t elements) {
     return elements * static_cast<int64_t>(sizeof(DayTimeIntervalType::DayMilliseconds));
@@ -340,6 +341,8 @@ struct TypeTraits<FixedSizeBinaryType> {
   using ArrayType = FixedSizeBinaryArray;
   using BuilderType = FixedSizeBinaryBuilder;
   using ScalarType = FixedSizeBinaryScalar;
+  // FixedSizeBinary doesn't have offsets per se, but string length is int32 sized
+  using OffsetType = Int32Type;
   constexpr static bool is_parameter_free = false;
 };
 
@@ -774,7 +777,8 @@ template <typename T>
 using is_physical_signed_integer_type =
     std::integral_constant<bool,
                            is_signed_integer_type<T>::value ||
-                               (is_temporal_type<T>::value && has_c_type<T>::value)>;
+                               (is_temporal_type<T>::value && has_c_type<T>::value &&
+                                std::is_integral<typename T::c_type>::value)>;
 
 template <typename T, typename R = void>
 using enable_if_physical_signed_integer =

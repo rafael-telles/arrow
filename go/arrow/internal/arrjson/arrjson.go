@@ -353,7 +353,7 @@ func (f *FieldWrapper) UnmarshalJSON(data []byte) error {
 	case "list":
 		f.arrowType = arrow.ListOf(f.Children[0].arrowType)
 		f.arrowType.(*arrow.ListType).Meta = f.Children[0].arrowMeta
-
+		f.arrowType.(*arrow.ListType).NullableElem = f.Children[0].Nullable
 	case "map":
 		t := mapJSON{}
 		if err := json.Unmarshal(f.Type, &t); err != nil {
@@ -376,6 +376,8 @@ func (f *FieldWrapper) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		f.arrowType = arrow.FixedSizeListOf(t.ListSize, f.Children[0].arrowType)
+		f.arrowType.(*arrow.FixedSizeListType).NullableElem = f.Children[0].Nullable
+		f.arrowType.(*arrow.FixedSizeListType).Meta = f.Children[0].arrowMeta
 	case "interval":
 		t := unitZoneJSON{}
 		if err := json.Unmarshal(f.Type, &t); err != nil {
@@ -548,13 +550,13 @@ func fieldsToJSON(fields []arrow.Field) []FieldWrapper {
 		}}
 		switch dt := f.Type.(type) {
 		case *arrow.ListType:
-			o[i].Children = fieldsToJSON([]arrow.Field{{Name: "item", Type: dt.Elem(), Nullable: f.Nullable, Metadata: dt.Meta}})
+			o[i].Children = fieldsToJSON([]arrow.Field{dt.ElemField()})
 		case *arrow.FixedSizeListType:
-			o[i].Children = fieldsToJSON([]arrow.Field{{Name: "item", Type: dt.Elem(), Nullable: f.Nullable}})
+			o[i].Children = fieldsToJSON([]arrow.Field{dt.ElemField()})
 		case *arrow.StructType:
 			o[i].Children = fieldsToJSON(dt.Fields())
 		case *arrow.MapType:
-			o[i].Children = fieldsToJSON([]arrow.Field{{Name: "entries", Type: dt.ValueType()}})
+			o[i].Children = fieldsToJSON([]arrow.Field{dt.ValueField()})
 		}
 	}
 	return o
@@ -759,9 +761,7 @@ func arrayFromJSON(mem memory.Allocator, dt arrow.DataType, arr Array) array.Int
 			bldr.Append(v)
 			beg := int64(arr.Offset[i])
 			end := int64(arr.Offset[i+1])
-			slice := array.NewSlice(elems, beg, end)
-			buildArray(bldr.ValueBuilder(), slice)
-			slice.Release()
+			buildArray(bldr.ValueBuilder(), array.NewSlice(elems, beg, end))
 		}
 		return bldr.NewArray()
 
@@ -776,9 +776,7 @@ func arrayFromJSON(mem memory.Allocator, dt arrow.DataType, arr Array) array.Int
 			bldr.Append(v)
 			beg := int64(i) * size
 			end := int64(i+1) * size
-			slice := array.NewSlice(elems, beg, end)
-			buildArray(bldr.ValueBuilder(), slice)
-			slice.Release()
+			buildArray(bldr.ValueBuilder(), array.NewSlice(elems, beg, end))
 		}
 		return bldr.NewArray()
 
@@ -795,7 +793,6 @@ func arrayFromJSON(mem memory.Allocator, dt arrow.DataType, arr Array) array.Int
 		for i := range dt.Fields() {
 			fbldr := bldr.FieldBuilder(i)
 			buildArray(fbldr, fields[i])
-			fields[i].Release()
 		}
 
 		return bldr.NewArray()
@@ -829,12 +826,10 @@ func arrayFromJSON(mem memory.Allocator, dt arrow.DataType, arr Array) array.Int
 			bldr.Append(v)
 			beg := int64(arr.Offset[i])
 			end := int64(arr.Offset[i+1])
-			slice := array.NewSlice(pairs, beg, end).(*array.Struct)
 			kb := bldr.KeyBuilder()
-			buildArray(kb, slice.Field(0))
+			buildArray(kb, array.NewSlice(pairs.(*array.Struct).Field(0), beg, end))
 			ib := bldr.ItemBuilder()
-			buildArray(ib, slice.Field(1))
-			slice.Release()
+			buildArray(ib, array.NewSlice(pairs.(*array.Struct).Field(1), beg, end))
 		}
 		return bldr.NewArray()
 

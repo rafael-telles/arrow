@@ -42,6 +42,7 @@ add_arrow_test(utility-test
                SOURCES
                align_util_test.cc
                async_generator_test.cc
+               async_util_test.cc
                bit_block_counter_test.cc
                bit_util_test.cc
                cache_test.cc
@@ -74,6 +75,7 @@ add_arrow_test(utility-test
 add_arrow_test(threading-utility-test
                SOURCES
                cancel_test.cc
+               counting_semaphore_test.cc
                future_test.cc
                task_group_test.cc
                thread_pool_test.cc)

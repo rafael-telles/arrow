@@ -38,11 +38,13 @@ mutate.arrow_dplyr_query <- function(.data,
   .data <- as_adq(.data)
 
   # Restrict the cases we support for now
-  if (length(dplyr::group_vars(.data)) > 0) {
+  has_aggregations <- any(unlist(lapply(exprs, all_funs)) %in% names(agg_funcs))
+  if (has_aggregations) {
+    # ARROW-13926
     # mutate() on a grouped dataset does calculations within groups
     # This doesn't matter on scalar ops (arithmetic etc.) but it does
     # for things with aggregations (e.g. subtracting the mean)
-    return(abandon_ship(call, .data, "mutate() on grouped data not supported in Arrow"))
+    return(abandon_ship(call, .data, "window functions not currently supported in Arrow"))
   }
 
   mask <- arrow_mask(.data)
@@ -87,7 +89,7 @@ mutate.arrow_dplyr_query <- function(.data,
   # Respect .before and .after
   if (!quo_is_null(.before) || !quo_is_null(.after)) {
     new <- setdiff(new_vars, old_vars)
-    .data <- dplyr::relocate(.data, !!new, .before = !!.before, .after = !!.after)
+    .data <- dplyr::relocate(.data, all_of(new), .before = !!.before, .after = !!.after)
   }
 
   # Respect .keep

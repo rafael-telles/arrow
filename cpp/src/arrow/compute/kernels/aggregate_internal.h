@@ -25,6 +25,7 @@
 
 namespace arrow {
 namespace compute {
+namespace internal {
 
 // Find the largest compatible primitive type for a primitive type.
 template <typename I, typename Enable = void>
@@ -98,13 +99,17 @@ struct ScalarAggregator : public KernelState {
 // kernel implementations together
 enum class VarOrStd : bool { Var, Std };
 
+// Helper to differentiate between min/max calculation so we can fold
+// kernel implementations together
+enum class MinOrMax : uint8_t { Min = 0, Max };
+
 void AddAggKernel(std::shared_ptr<KernelSignature> sig, KernelInit init,
                   ScalarAggregateFunction* func,
                   SimdLevel::type simd_level = SimdLevel::NONE);
 
-namespace detail {
-
-using arrow::internal::VisitSetBitRunsVoid;
+void AddAggKernel(std::shared_ptr<KernelSignature> sig, KernelInit init,
+                  ScalarAggregateFinalize finalize, ScalarAggregateFunction* func,
+                  SimdLevel::type simd_level = SimdLevel::NONE);
 
 // SumArray must be parameterized with the SIMD level since it's called both from
 // translation units with and without vectorization. Normally it gets inlined but
@@ -117,6 +122,8 @@ template <typename ValueType, typename SumType, SimdLevel::type SimdLevel,
           typename ValueFunc>
 enable_if_t<std::is_floating_point<SumType>::value, SumType> SumArray(
     const ArrayData& data, ValueFunc&& func) {
+  using arrow::internal::VisitSetBitRunsVoid;
+
   const int64_t data_size = data.length - data.GetNullCount();
   if (data_size == 0) {
     return 0;
@@ -192,6 +199,8 @@ template <typename ValueType, typename SumType, SimdLevel::type SimdLevel,
           typename ValueFunc>
 enable_if_t<!std::is_floating_point<SumType>::value, SumType> SumArray(
     const ArrayData& data, ValueFunc&& func) {
+  using arrow::internal::VisitSetBitRunsVoid;
+
   SumType sum = 0;
   const ValueType* values = data.GetValues<ValueType>(1);
   VisitSetBitRunsVoid(data.buffers[0], data.offset, data.length,
@@ -209,7 +218,6 @@ SumType SumArray(const ArrayData& data) {
       data, [](ValueType v) { return static_cast<SumType>(v); });
 }
 
-}  // namespace detail
-
+}  // namespace internal
 }  // namespace compute
 }  // namespace arrow

@@ -16,6 +16,7 @@
 // under the License.
 
 #include "arrow/testing/gtest_util.h"
+
 #include "arrow/testing/extension_type.h"
 
 #ifndef _WIN32
@@ -443,6 +444,15 @@ std::shared_ptr<Scalar> ScalarFromJSON(const std::shared_ptr<DataType>& type,
                                        util::string_view json) {
   std::shared_ptr<Scalar> out;
   ABORT_NOT_OK(ipc::internal::json::ScalarFromJSON(type, json, &out));
+  return out;
+}
+
+std::shared_ptr<Scalar> DictScalarFromJSON(const std::shared_ptr<DataType>& type,
+                                           util::string_view index_json,
+                                           util::string_view dictionary_json) {
+  std::shared_ptr<Scalar> out;
+  ABORT_NOT_OK(
+      ipc::internal::json::DictScalarFromJSON(type, index_json, dictionary_json, &out));
   return out;
 }
 
@@ -899,7 +909,9 @@ ExtensionTypeGuard::~ExtensionTypeGuard() {
 class GatingTask::Impl : public std::enable_shared_from_this<GatingTask::Impl> {
  public:
   explicit Impl(double timeout_seconds)
-      : timeout_seconds_(timeout_seconds), status_(), unlocked_(false) {}
+      : timeout_seconds_(timeout_seconds), status_(), unlocked_(false) {
+    unlocked_future_ = Future<>::Make();
+  }
 
   ~Impl() {
     if (num_running_ != num_launched_) {
@@ -921,6 +933,15 @@ class GatingTask::Impl : public std::enable_shared_from_this<GatingTask::Impl> {
     return [self] { self->RunTask(); };
   }
 
+  Future<> AsyncTask() {
+    num_launched_++;
+    num_running_++;
+    /// TODO(ARROW-13004) Could maybe implement this check with future chains
+    /// if we check to see if the future has been "consumed" or not
+    num_finished_++;
+    return unlocked_future_;
+  }
+
   void RunTask() {
     std::unique_lock<std::mutex> lk(mx_);
     num_running_++;
@@ -933,7 +954,6 @@ class GatingTask::Impl : public std::enable_shared_from_this<GatingTask::Impl> {
                                  " seconds) waiting for the gating task to be unlocked");
     }
     num_finished_++;
-    finished_cv_.notify_all();
   }
 
   Status WaitForRunning(int count) {
@@ -950,6 +970,7 @@ class GatingTask::Impl : public std::enable_shared_from_this<GatingTask::Impl> {
     std::lock_guard<std::mutex> lk(mx_);
     unlocked_ = true;
     unlocked_cv_.notify_all();
+    unlocked_future_.MarkFinished();
     return status_;
   }
 
@@ -963,7 +984,7 @@ class GatingTask::Impl : public std::enable_shared_from_this<GatingTask::Impl> {
   std::mutex mx_;
   std::condition_variable running_cv_;
   std::condition_variable unlocked_cv_;
-  std::condition_variable finished_cv_;
+  Future<> unlocked_future_;
 };
 
 GatingTask::GatingTask(double timeout_seconds) : impl_(new Impl(timeout_seconds)) {}
@@ -971,6 +992,8 @@ GatingTask::GatingTask(double timeout_seconds) : impl_(new Impl(timeout_seconds)
 GatingTask::~GatingTask() {}
 
 std::function<void()> GatingTask::Task() { return impl_->Task(); }
+
+Future<> GatingTask::AsyncTask() { return impl_->AsyncTask(); }
 
 Status GatingTask::Unlock() { return impl_->Unlock(); }
 

@@ -15,11 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-context("Schema metadata and R attributes")
-
 test_that("Schema metadata", {
   s <- schema(b = double())
-  expect_equivalent(s$metadata, list())
+  expect_equal(s$metadata, empty_named_list())
   expect_false(s$HasMetadata)
   s$metadata <- list(test = TRUE)
   expect_identical(s$metadata, list(test = "TRUE"))
@@ -31,7 +29,7 @@ test_that("Schema metadata", {
   expect_identical(s$metadata, list(test = "TRUE"))
   expect_true(s$HasMetadata)
   s$metadata <- NULL
-  expect_equivalent(s$metadata, list())
+  expect_equal(s$metadata, empty_named_list())
   expect_false(s$HasMetadata)
   expect_error(
     s$metadata <- 4,
@@ -41,7 +39,7 @@ test_that("Schema metadata", {
 
 test_that("Table metadata", {
   tab <- Table$create(x = 1:2, y = c("a", "b"))
-  expect_equivalent(tab$metadata, list())
+  expect_equal(tab$metadata, empty_named_list())
   tab$metadata <- list(test = TRUE)
   expect_identical(tab$metadata, list(test = "TRUE"))
   tab$metadata$foo <- 42
@@ -49,7 +47,7 @@ test_that("Table metadata", {
   tab$metadata$foo <- NULL
   expect_identical(tab$metadata, list(test = "TRUE"))
   tab$metadata <- NULL
-  expect_equivalent(tab$metadata, list())
+  expect_equal(tab$metadata, empty_named_list())
 })
 
 test_that("Table R metadata", {
@@ -63,6 +61,22 @@ test_that("R metadata is not stored for types that map to Arrow types (factor, D
   expect_null(tab$metadata$r)
 
   expect_null(Table$create(example_with_times[1:3])$metadata$r)
+})
+
+test_that("classes are not stored for arrow_binary/arrow_large_binary/arrow_fixed_size_binary (ARROW-14140)", {
+  raws <- charToRaw("bonjour")
+
+  binary <- Array$create(list(raws), binary())
+  large_binary <- Array$create(list(raws), large_binary())
+  fixed_size_binary <- Array$create(list(raws), fixed_size_binary(7L))
+
+  expect_null(RecordBatch$create(b = binary)$metadata$r)
+  expect_null(RecordBatch$create(b = large_binary)$metadata$r)
+  expect_null(RecordBatch$create(b = fixed_size_binary)$metadata$r)
+
+  expect_null(Table$create(b = binary)$metadata$r)
+  expect_null(Table$create(b = large_binary)$metadata$r)
+  expect_null(Table$create(b = fixed_size_binary)$metadata$r)
 })
 
 test_that("Garbage R metadata doesn't break things", {
@@ -126,7 +140,7 @@ test_that("Metadata serialization compression", {
 
 test_that("RecordBatch metadata", {
   rb <- RecordBatch$create(x = 1:2, y = c("a", "b"))
-  expect_equivalent(rb$metadata, list())
+  expect_equal(rb$metadata, empty_named_list())
   rb$metadata <- list(test = TRUE)
   expect_identical(rb$metadata, list(test = "TRUE"))
   rb$metadata$foo <- 42
@@ -134,7 +148,7 @@ test_that("RecordBatch metadata", {
   rb$metadata$foo <- NULL
   expect_identical(rb$metadata, list(test = "TRUE"))
   rb$metadata <- NULL
-  expect_equivalent(rb$metadata, list())
+  expect_equal(rb$metadata, empty_named_list())
 })
 
 test_that("RecordBatch R metadata", {
@@ -200,18 +214,31 @@ test_that("metadata drops readr's problems attribute", {
   expect_null(attr(as.data.frame(tab), "problems"))
 })
 
-test_that("metadata of list elements (ARROW-10386)", {
+test_that("Row-level metadata (does not by default) roundtrip", {
+  # First tracked at ARROW-10386, though it was later determined that row-level
+  # metadata should be handled separately ARROW-14020, ARROW-12542
   df <- data.frame(x = I(list(structure(1, foo = "bar"), structure(2, baz = "qux"))))
+  tab <- Table$create(df)
+  r_metadata <- .unserialize_arrow_r_metadata(tab$metadata$r)
+  expect_null(r_metadata$columns$x$columns)
+
+  # But we can re-enable this / read data that has already been written with
+  # row-level metadata
+  withr::local_options(list("arrow.preserve_row_level_metadata" = TRUE))
+
   tab <- Table$create(df)
   expect_identical(attr(as.data.frame(tab)$x[[1]], "foo"), "bar")
   expect_identical(attr(as.data.frame(tab)$x[[2]], "baz"), "qux")
 })
 
 
-test_that("metadata of list elements (ARROW-10386)", {
+test_that("Row-level metadata (does not) roundtrip in datasets", {
+  # First tracked at ARROW-10386, though it was later determined that row-level
+  # metadata should be handled separately ARROW-14020, ARROW-12542
   skip_if_not_available("dataset")
   skip_if_not_available("parquet")
 
+  local_edition(3)
   library(dplyr)
 
   df <- tibble::tibble(
@@ -226,11 +253,16 @@ test_that("metadata of list elements (ARROW-10386)", {
   )
 
   dst_dir <- make_temp_dir()
+
+  withr::local_options(list("arrow.preserve_row_level_metadata" = TRUE))
   expect_warning(
     write_dataset(df, dst_dir, partitioning = "part"),
     "Row-level metadata is not compatible with datasets and will be discarded"
   )
 
+  # Reset directory as previous write will have created some files and the default
+  # behavior is to error on existing
+  dst_dir <- make_temp_dir()
   # but we need to write a dataset with row-level metadata to make sure when
   # reading ones that have been written with them we warn appropriately
   fake_func_name <- write_dataset
@@ -239,14 +271,65 @@ test_that("metadata of list elements (ARROW-10386)", {
   ds <- open_dataset(dst_dir)
   expect_warning(
     df_from_ds <- collect(ds),
-    NA # TODO: ARROW-13852
-    # "Row-level metadata is not compatible with this operation and has been ignored"
+    "Row-level metadata is not compatible with this operation and has been ignored"
   )
-  expect_equal(arrange(df_from_ds, int), arrange(df, int), check.attributes = FALSE)
+  expect_equal(
+    arrange(df_from_ds, int),
+    arrange(df, int),
+    ignore_attr = TRUE
+  )
 
   # however there is *no* warning if we don't select the metadata column
   expect_warning(
     df_from_ds <- ds %>% select(int) %>% collect(),
     NA
+  )
+})
+
+test_that("dplyr with metadata", {
+  skip_if_not_available("dataset")
+
+  expect_dplyr_equal(
+    input %>%
+      collect(),
+    example_with_metadata
+  )
+  expect_dplyr_equal(
+    input %>%
+      select(a) %>%
+      collect(),
+    example_with_metadata
+  )
+  expect_dplyr_equal(
+    input %>%
+      mutate(z = b * 4) %>%
+      select(z, a) %>%
+      collect(),
+    example_with_metadata
+  )
+  expect_dplyr_equal(
+    input %>%
+      mutate(z = nchar(a)) %>%
+      select(z, a) %>%
+      collect(),
+    example_with_metadata
+  )
+  # dplyr drops top-level attributes if you do summarize, though attributes
+  # of grouping columns appear to come through
+  expect_dplyr_equal(
+    input %>%
+      group_by(a) %>%
+      summarize(n()) %>%
+      collect(),
+    example_with_metadata
+  )
+  # Same name in output but different data, so the column metadata shouldn't
+  # carry through
+  expect_dplyr_equal(
+    input %>%
+      mutate(a = nchar(a)) %>%
+      select(a) %>%
+      collect(),
+    example_with_metadata
   )
 })

@@ -31,6 +31,7 @@
 #include "arrow/compute/exec/exec_plan.h"
 #include "arrow/dataset/dataset.h"
 #include "arrow/dataset/dataset_internal.h"
+#include "arrow/dataset/plan.h"
 #include "arrow/dataset/scanner_internal.h"
 #include "arrow/table.h"
 #include "arrow/util/async_generator.h"
@@ -339,6 +340,7 @@ class SyncScanner : public Scanner {
   Result<TaggedRecordBatchGenerator> ScanBatchesAsync() override;
   Result<EnumeratedRecordBatchGenerator> ScanBatchesUnorderedAsync() override;
   Result<int64_t> CountRows() override;
+  const std::shared_ptr<Dataset>& dataset() const override;
 
  protected:
   /// \brief GetFragments returns an iterator over all Fragments in this scan.
@@ -416,6 +418,8 @@ Result<ScanTaskIterator> SyncScanner::ScanInternal() {
   return GetScanTaskIterator(std::move(fragment_it), scan_options_);
 }
 
+const std::shared_ptr<Dataset>& SyncScanner::dataset() const { return dataset_; }
+
 class AsyncScanner : public Scanner, public std::enable_shared_from_this<AsyncScanner> {
  public:
   AsyncScanner(std::shared_ptr<Dataset> dataset,
@@ -431,6 +435,7 @@ class AsyncScanner : public Scanner, public std::enable_shared_from_this<AsyncSc
   Result<EnumeratedRecordBatchGenerator> ScanBatchesUnorderedAsync() override;
   Result<std::shared_ptr<Table>> ToTable() override;
   Result<int64_t> CountRows() override;
+  const std::shared_ptr<Dataset>& dataset() const override;
 
  private:
   Result<TaggedRecordBatchGenerator> ScanBatchesAsync(Executor* executor);
@@ -448,6 +453,16 @@ Result<EnumeratedRecordBatchGenerator> FragmentToBatches(
     const Enumerated<std::shared_ptr<Fragment>>& fragment,
     const std::shared_ptr<ScanOptions>& options) {
   ARROW_ASSIGN_OR_RAISE(auto batch_gen, fragment.value->ScanBatchesAsync(options));
+  ArrayVector columns;
+  for (const auto& field : options->dataset_schema->fields()) {
+    // TODO(ARROW-7051): use helper to make empty batch
+    ARROW_ASSIGN_OR_RAISE(auto array,
+                          MakeArrayOfNull(field->type(), /*length=*/0, options->pool));
+    columns.push_back(std::move(array));
+  }
+  batch_gen = MakeDefaultIfEmptyGenerator(
+      std::move(batch_gen),
+      RecordBatch::Make(options->dataset_schema, /*num_rows=*/0, std::move(columns)));
   auto enumerated_batch_gen = MakeEnumeratedGenerator(std::move(batch_gen));
 
   auto combine_fn =
@@ -765,9 +780,8 @@ Result<int64_t> AsyncScanner::CountRows() {
               if (fast_count) {
                 // fast path: got row count directly; skip scanning this fragment
                 total += *fast_count;
-                return std::make_shared<OneShotFragment>(
-                    options->dataset_schema,
-                    MakeEmptyIterator<std::shared_ptr<RecordBatch>>());
+                return std::make_shared<InMemoryFragment>(options->dataset_schema,
+                                                          RecordBatchVector{});
               }
 
               // slow path: actually filter this fragment's batches
@@ -802,6 +816,8 @@ Result<int64_t> AsyncScanner::CountRows() {
 
   return total.load();
 }
+
+const std::shared_ptr<Dataset>& AsyncScanner::dataset() const { return dataset_; }
 
 }  // namespace
 
@@ -1301,17 +1317,12 @@ Result<compute::ExecNode*> MakeOrderedSinkNode(compute::ExecPlan* plan,
 }  // namespace
 
 namespace internal {
-
-void Initialize() {
-  static auto registry = compute::default_exec_factory_registry();
-  if (registry) {
-    DCHECK_OK(registry->AddFactory("scan", MakeScanNode));
-    DCHECK_OK(registry->AddFactory("ordered_sink", MakeOrderedSinkNode));
-    DCHECK_OK(registry->AddFactory("augmented_project", MakeAugmentedProjectNode));
-    registry = nullptr;
-  }
+void InitializeScanner(arrow::compute::ExecFactoryRegistry* registry) {
+  DCHECK_OK(registry->AddFactory("scan", MakeScanNode));
+  DCHECK_OK(registry->AddFactory("ordered_sink", MakeOrderedSinkNode));
+  DCHECK_OK(registry->AddFactory("augmented_project", MakeAugmentedProjectNode));
 }
-
 }  // namespace internal
+
 }  // namespace dataset
 }  // namespace arrow

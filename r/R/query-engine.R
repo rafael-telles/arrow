@@ -18,11 +18,36 @@
 do_exec_plan <- function(.data) {
   plan <- ExecPlan$create()
   final_node <- plan$Build(.data)
-  tab <- plan$Run(final_node)
+  tab <- plan$Run(final_node)$read_table()
 
+  # If arrange() created $temp_columns, make sure to omit them from the result
+  # We can't currently handle this in the ExecPlan itself because sorting
+  # happens in the end (SinkNode) so nothing comes after it.
   if (length(final_node$sort$temp_columns) > 0) {
-    # If arrange() created $temp_columns, make sure to omit them from the result
     tab <- tab[, setdiff(names(tab), final_node$sort$temp_columns), drop = FALSE]
+  }
+
+  if (ncol(tab)) {
+    # Apply any column metadata from the original schema, where appropriate
+    original_schema <- source_data(.data)$schema
+    # TODO: do we care about other (non-R) metadata preservation?
+    # How would we know if it were meaningful?
+    r_meta <- original_schema$metadata$r
+    if (!is.null(r_meta)) {
+      r_meta <- .unserialize_arrow_r_metadata(r_meta)
+      # Filter r_metadata$columns on columns with name _and_ type match
+      new_schema <- tab$schema
+      common_names <- intersect(names(r_meta$columns), names(tab))
+      keep <- common_names[
+        map_lgl(common_names, ~ original_schema[[.]] == new_schema[[.]])
+      ]
+      r_meta$columns <- r_meta$columns[keep]
+      if (has_aggregation(.data)) {
+        # dplyr drops top-level attributes if you do summarize
+        r_meta$attributes <- NULL
+      }
+      tab$metadata$r <- .serialize_arrow_r_metadata(r_meta)
+    }
   }
 
   tab
@@ -118,7 +143,15 @@ ExecPlan <- R6Class("ExecPlan",
             )
           }
         }
-      } else {
+      } else if (!is.null(.data$join)) {
+        node <- node$Join(
+          type = .data$join$type,
+          right_node = self$Build(.data$join$right_data),
+          by = .data$join$by,
+          left_output = names(.data),
+          right_output = setdiff(names(.data$join$right_data), .data$join$by)
+        )
+      } else if (length(node$schema)) {
         # If any columns are derived, reordered, or renamed we need to Project
         # If there are aggregations, the projection was already handled above
         # We have to project at least once to eliminate some junk columns
@@ -181,6 +214,22 @@ ExecNode <- R6Class("ExecNode",
       self$preserve_sort(
         ExecNode_Aggregate(self, options, target_names, out_field_names, key_names)
       )
+    },
+    Join = function(type, right_node, by, left_output, right_output) {
+      self$preserve_sort(
+        ExecNode_Join(
+          self,
+          type,
+          right_node,
+          left_keys = names(by),
+          right_keys = by,
+          left_output = left_output,
+          right_output = right_output
+        )
+      )
     }
+  ),
+  active = list(
+    schema = function() ExecNode_output_schema(self)
   )
 )

@@ -17,6 +17,9 @@
 
 package org.apache.arrow.flight.sql.util;
 
+import java.util.Arrays;
+import java.util.Collection;
+
 import org.apache.arrow.flight.sql.FlightSqlClient;
 import org.apache.arrow.flight.sql.impl.FlightSql.SqlInfo;
 
@@ -40,5 +43,29 @@ public final class SqlInfoOptionsUtils {
    */
   public static boolean doesBitmaskTranslateToEnum(final ProtocolMessageEnum enumInstance, final long bitmask) {
     return ((bitmask >> enumInstance.getNumber()) & 1) == 1;
+  }
+
+  /**
+   * Creates a bitmask that translates to the specified {@code enums}.
+   *
+   * @param enums the {@link ProtocolMessageEnum} instances to represent as bitmask.
+   * @return the bitmask.
+   */
+  public static long createBitmaskFromEnums(final ProtocolMessageEnum... enums) {
+    return createBitmaskFromEnums(Arrays.asList(enums));
+  }
+
+  /**
+   * Creates a bitmask that translates to the specified {@code enums}.
+   *
+   * @param enums the {@link ProtocolMessageEnum} instances to represent as bitmask.
+   * @return the bitmask.
+   */
+  public static long createBitmaskFromEnums(final Collection<ProtocolMessageEnum> enums) {
+    return enums.stream()
+        .mapToInt(ProtocolMessageEnum::getNumber)
+        .map(bitIndexToSet -> 1 << bitIndexToSet)
+        .reduce((firstBitmask, secondBitmask) -> firstBitmask | secondBitmask)
+        .orElse(0);
   }
 }

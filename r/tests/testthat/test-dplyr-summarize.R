@@ -19,7 +19,7 @@ skip_if_not_available("dataset")
 
 withr::local_options(list(arrow.summarise.sort = TRUE))
 
-library(dplyr)
+library(dplyr, warn.conflicts = FALSE)
 library(stringr)
 
 tbl <- example_data
@@ -29,28 +29,6 @@ tbl$verses <- verses[[1]]
 # nchar =   3  5  7  9 11 13 15 17 19 21
 tbl$padded_strings <- stringr::str_pad(letters[1:10], width = 2 * (1:10) + 1, side = "both")
 tbl$some_grouping <- rep(c(1, 2), 5)
-
-test_that("summarize", {
-  expect_dplyr_equal(
-    input %>%
-      select(int, chr) %>%
-      filter(int > 5) %>%
-      summarize(min_int = min(int)) %>%
-      collect(),
-    tbl,
-    warning = TRUE
-  )
-
-  expect_dplyr_equal(
-    input %>%
-      select(int, chr) %>%
-      filter(int > 5) %>%
-      summarize(min_int = min(int) / 2) %>%
-      collect(),
-    tbl,
-    warning = TRUE
-  )
-})
 
 test_that("summarize() doesn't evaluate eagerly", {
   expect_s3_class(
@@ -134,7 +112,6 @@ test_that("Group by sd on dataset", {
     tbl
   )
 
-  skip("ARROW-13691 - na.rm not yet implemented for VarianceOptions")
   expect_dplyr_equal(
     input %>%
       group_by(some_grouping) %>%
@@ -153,7 +130,6 @@ test_that("Group by var on dataset", {
     tbl
   )
 
-  skip("ARROW-13691 - na.rm not yet implemented for VarianceOptions")
   expect_dplyr_equal(
     input %>%
       group_by(some_grouping) %>%
@@ -164,7 +140,6 @@ test_that("Group by var on dataset", {
 })
 
 test_that("n()", {
-  withr::local_options(list(arrow.debug = TRUE))
   expect_dplyr_equal(
     input %>%
       summarize(counts = n()) %>%
@@ -237,7 +212,8 @@ test_that("Group by any/all", {
   )
 })
 
-test_that("Group by n_distinct() on dataset", {
+test_that("n_distinct() on dataset", {
+  # With groupby
   expect_dplyr_equal(
     input %>%
       group_by(some_grouping) %>%
@@ -249,6 +225,289 @@ test_that("Group by n_distinct() on dataset", {
     input %>%
       group_by(some_grouping) %>%
       summarize(distinct = n_distinct(lgl, na.rm = TRUE)) %>%
+      collect(),
+    tbl
+  )
+  # Without groupby
+  expect_dplyr_equal(
+    input %>%
+      summarize(distinct = n_distinct(lgl, na.rm = FALSE)) %>%
+      collect(),
+    tbl
+  )
+  expect_dplyr_equal(
+    input %>%
+      summarize(distinct = n_distinct(lgl, na.rm = TRUE)) %>%
+      collect(),
+    tbl
+  )
+})
+
+test_that("median()", {
+  # When medians are integer-valued, stats::median() sometimes returns output of
+  # type integer, whereas whereas the Arrow approx_median kernels always return
+  # output of type float64. The calls to median(int, ...) in the tests below
+  # are enclosed in as.double() to work around this known difference.
+
+  # with groups
+  expect_dplyr_equal(
+    input %>%
+      group_by(some_grouping) %>%
+      summarize(
+        med_dbl = median(dbl),
+        med_int = as.double(median(int)),
+        med_dbl_narmf = median(dbl, FALSE),
+        med_int_narmf = as.double(median(int, na.rm = FALSE)),
+        med_dbl_narmt = median(dbl, na.rm = TRUE),
+        med_int_narmt = as.double(median(int, TRUE))
+      ) %>%
+      arrange(some_grouping) %>%
+      collect(),
+    tbl,
+    warning = "median\\(\\) currently returns an approximate median in Arrow"
+  )
+  # without groups, with na.rm = TRUE
+  expect_dplyr_equal(
+    input %>%
+      summarize(
+        med_dbl_narmt = median(dbl, na.rm = TRUE),
+        med_int_narmt = as.double(median(int, TRUE))
+      ) %>%
+      collect(),
+    tbl,
+    warning = "median\\(\\) currently returns an approximate median in Arrow"
+  )
+  # without groups, with na.rm = FALSE (the default)
+  expect_dplyr_equal(
+    input %>%
+      summarize(
+        med_dbl = median(dbl),
+        med_int = as.double(median(int)),
+        med_dbl_narmf = median(dbl, FALSE),
+        med_int_narmf = as.double(median(int, na.rm = FALSE))
+      ) %>%
+      collect(),
+    tbl,
+    warning = "median\\(\\) currently returns an approximate median in Arrow"
+  )
+})
+
+test_that("quantile()", {
+  # The default method for stats::quantile() throws an error when na.rm = FALSE
+  # and the input contains NA or NaN, whereas the Arrow tdigest kernels return
+  # null in this situation. To work around this known difference, the tests
+  # below always use na.rm = TRUE when the data contains NA or NaN.
+
+  # The default method for stats::quantile() has an argument `names` that
+  # controls whether the result has a names attribute. It defaults to
+  # names = TRUE. With Arrow, it is not possible to give the result a names
+  # attribute, so the quantile() binding in Arrow does not accept a `names`
+  # argument. Differences in this names attribute cause expect_dplyr_equal() to
+  # report that the objects are not equal, so we do not use expect_dplyr_equal()
+  # in the tests below.
+
+  # The tests below all use probs = 0.5 because other values cause differences
+  # between the exact quantiles returned by R and the approximate quantiles
+  # returned by Arrow.
+
+  # When quantiles are integer-valued, stats::quantile() sometimes returns
+  # output of type integer, whereas whereas the Arrow tdigest kernels always
+  # return output of type float64. The calls to quantile(int, ...) in the tests
+  # below are enclosed in as.double() to work around this known difference.
+
+  # with groups
+  expect_warning(
+    expect_equal(
+      tbl %>%
+        group_by(some_grouping) %>%
+        summarize(
+          q_dbl = quantile(dbl, probs = 0.5, na.rm = TRUE, names = FALSE),
+          q_int = as.double(
+            quantile(int, probs = 0.5, na.rm = TRUE, names = FALSE)
+          )
+        ) %>%
+        arrange(some_grouping),
+      Table$create(tbl) %>%
+        group_by(some_grouping) %>%
+        summarize(
+          q_dbl = quantile(dbl, probs = 0.5, na.rm = TRUE),
+          q_int = as.double(quantile(int, probs = 0.5, na.rm = TRUE))
+        ) %>%
+        arrange(some_grouping) %>%
+        collect()
+    ),
+    "quantile() currently returns an approximate quantile in Arrow",
+    fixed = TRUE
+  )
+
+  # without groups
+  expect_warning(
+    expect_equal(
+      tbl %>%
+        summarize(
+          q_dbl = quantile(dbl, probs = 0.5, na.rm = TRUE, names = FALSE),
+          q_int = as.double(
+            quantile(int, probs = 0.5, na.rm = TRUE, names = FALSE)
+          )
+        ),
+      Table$create(tbl) %>%
+        summarize(
+          q_dbl = quantile(dbl, probs = 0.5, na.rm = TRUE),
+          q_int = as.double(quantile(int, probs = 0.5, na.rm = TRUE))
+        ) %>%
+        collect()
+    ),
+    "quantile() currently returns an approximate quantile in Arrow",
+    fixed = TRUE
+  )
+
+  # with missing values and na.rm = FALSE
+  expect_warning(
+    expect_equal(
+      tibble(
+        q_dbl = NA_real_,
+        q_int = NA_real_
+      ),
+      Table$create(tbl) %>%
+        summarize(
+          q_dbl = quantile(dbl, probs = 0.5, na.rm = FALSE),
+          q_int = as.double(quantile(int, probs = 0.5, na.rm = FALSE))
+        ) %>%
+        collect()
+    ),
+    "quantile() currently returns an approximate quantile in Arrow",
+    fixed = TRUE
+  )
+
+  # with a vector of 2+ probs
+  expect_warning(
+    Table$create(tbl) %>%
+      summarize(q = quantile(dbl, probs = c(0.2, 0.8), na.rm = TRUE)),
+    "quantile() with length(probs) != 1 not supported by Arrow",
+    fixed = TRUE
+  )
+})
+
+test_that("summarize() with min() and max()", {
+  expect_dplyr_equal(
+    input %>%
+      select(int, chr) %>%
+      filter(int > 5) %>% # this filters out the NAs in `int`
+      summarize(min_int = min(int), max_int = max(int)) %>%
+      collect(),
+    tbl,
+  )
+  expect_dplyr_equal(
+    input %>%
+      select(int, chr) %>%
+      filter(int > 5) %>% # this filters out the NAs in `int`
+      summarize(
+        min_int = min(int + 4) / 2,
+        max_int = 3 / max(42 - int)
+      ) %>%
+      collect(),
+    tbl,
+  )
+  expect_dplyr_equal(
+    input %>%
+      select(int, chr) %>%
+      summarize(min_int = min(int), max_int = max(int)) %>%
+      collect(),
+    tbl,
+  )
+  expect_dplyr_equal(
+    input %>%
+      select(int) %>%
+      summarize(
+        min_int = min(int, na.rm = TRUE),
+        max_int = max(int, na.rm = TRUE)
+      ) %>%
+      collect(),
+    tbl,
+  )
+  expect_dplyr_equal(
+    input %>%
+      select(dbl, int) %>%
+      summarize(
+        min_int = -min(log(ceiling(dbl)), na.rm = TRUE),
+        max_int = log(max(as.double(int), na.rm = TRUE))
+      ) %>%
+      collect(),
+    tbl,
+  )
+
+  # multiple dots arguments to min(), max() not supported
+  expect_dplyr_equal(
+    input %>%
+      summarize(min_mult = min(dbl, int)) %>%
+      collect(),
+    tbl,
+    warning = "Multiple arguments to min\\(\\) not supported by Arrow"
+  )
+  expect_dplyr_equal(
+    input %>%
+      select(int, dbl, dbl2) %>%
+      summarize(max_mult = max(int, dbl, dbl2)) %>%
+      collect(),
+    tbl,
+    warning = "Multiple arguments to max\\(\\) not supported by Arrow"
+  )
+
+  # min(logical) or max(logical) yields integer in R
+  # min(Boolean) or max(Boolean) yields Boolean in Arrow
+  expect_dplyr_equal(
+    input %>%
+      select(lgl) %>%
+      summarize(
+        max_lgl = as.logical(max(lgl, na.rm = TRUE)),
+        min_lgl = as.logical(min(lgl, na.rm = TRUE))
+      ) %>%
+      collect(),
+    tbl,
+  )
+})
+
+test_that("min() and max() on character strings", {
+  expect_dplyr_equal(
+    input %>%
+      summarize(
+        min_chr = min(chr, na.rm = TRUE),
+        max_chr = max(chr, na.rm = TRUE)
+      ) %>%
+      collect(),
+    tbl,
+  )
+  skip("Strings not supported by hash_min_max (ARROW-13988)")
+  expect_dplyr_equal(
+    input %>%
+      group_by(fct) %>%
+      summarize(
+        min_chr = min(chr, na.rm = TRUE),
+        max_chr = max(chr, na.rm = TRUE)
+      ) %>%
+      collect(),
+    tbl,
+  )
+})
+
+test_that("summarise() with !!sym()", {
+  test_chr_col <- "int"
+  test_dbl_col <- "dbl"
+  test_lgl_col <- "lgl"
+  expect_dplyr_equal(
+    input %>%
+      group_by(false) %>%
+      summarise(
+        sum = sum(!!sym(test_dbl_col)),
+        any = any(!!sym(test_lgl_col)),
+        all = all(!!sym(test_lgl_col)),
+        mean = mean(!!sym(test_dbl_col)),
+        sd = sd(!!sym(test_dbl_col)),
+        var = var(!!sym(test_dbl_col)),
+        n_distinct = n_distinct(!!sym(test_chr_col)),
+        min = min(!!sym(test_dbl_col)),
+        max = max(!!sym(test_dbl_col))
+      ) %>%
       collect(),
     tbl
   )
@@ -352,7 +611,6 @@ test_that("Expressions on aggregations", {
         any = any(lgl),
         all = all(lgl)
       ) %>%
-      compute() %>%
       ungroup() %>% # TODO: loosen the restriction on mutate after group_by
       mutate(some = any & !all) %>%
       select(some_grouping, some) %>%
@@ -360,11 +618,47 @@ test_that("Expressions on aggregations", {
     tbl
   )
   # More concisely:
-  skip("TODO: ARROW-13778")
   expect_dplyr_equal(
     input %>%
       group_by(some_grouping) %>%
       summarize(any(lgl) & !all(lgl)) %>%
+      collect(),
+    tbl
+  )
+
+  # Save one of the aggregates first
+  expect_dplyr_equal(
+    input %>%
+      group_by(some_grouping) %>%
+      summarize(
+        any_lgl = any(lgl),
+        some = any_lgl & !all(lgl)
+      ) %>%
+      collect(),
+    tbl
+  )
+
+  # Make sure order of columns in result is correct
+  expect_dplyr_equal(
+    input %>%
+      group_by(some_grouping) %>%
+      summarize(
+        any_lgl = any(lgl),
+        some = any_lgl & !all(lgl),
+        n()
+      ) %>%
+      collect(),
+    tbl
+  )
+
+  # Aggregate on an aggregate (trivial but dplyr allows)
+  skip("Aggregate on an aggregate not supported")
+  expect_dplyr_equal(
+    input %>%
+      group_by(some_grouping) %>%
+      summarize(
+        any_lgl = any(any(lgl))
+      ) %>%
       collect(),
     tbl
   )
@@ -377,5 +671,113 @@ test_that("Summarize with 0 arguments", {
       summarize() %>%
       collect(),
     tbl
+  )
+})
+
+test_that("Not (yet) supported: implicit join", {
+  withr::local_options(list(arrow.debug = TRUE))
+  expect_dplyr_equal(
+    input %>%
+      group_by(some_grouping) %>%
+      summarize(
+        sum((dbl - mean(dbl))^2)
+      ) %>%
+      collect(),
+    tbl,
+    warning = "Expression sum\\(\\(dbl - mean\\(dbl\\)\\)\\^2\\) not supported in Arrow; pulling data into R"
+  )
+  expect_dplyr_equal(
+    input %>%
+      group_by(some_grouping) %>%
+      summarize(
+        sum(dbl - mean(dbl))
+      ) %>%
+      collect(),
+    tbl,
+    warning = "Expression sum\\(dbl - mean\\(dbl\\)\\) not supported in Arrow; pulling data into R"
+  )
+  expect_dplyr_equal(
+    input %>%
+      group_by(some_grouping) %>%
+      summarize(
+        sqrt(sum((dbl - mean(dbl))^2) / (n() - 1L))
+      ) %>%
+      collect(),
+    tbl,
+    warning = "Expression sum\\(\\(dbl - mean\\(dbl\\)\\)\\^2\\) not supported in Arrow; pulling data into R"
+  )
+
+  expect_dplyr_equal(
+    input %>%
+      group_by(some_grouping) %>%
+      summarize(
+        dbl - mean(dbl)
+      ) %>%
+      collect(),
+    tbl,
+    warning = "Expression dbl - mean\\(dbl\\) not supported in Arrow; pulling data into R"
+  )
+
+  # This one could possibly be supported--in mutate()
+  expect_dplyr_equal(
+    input %>%
+      group_by(some_grouping) %>%
+      summarize(
+        dbl - int
+      ) %>%
+      collect(),
+    tbl,
+    warning = "Expression dbl - int not supported in Arrow; pulling data into R"
+  )
+})
+
+test_that(".groups argument", {
+  expect_dplyr_equal(
+    input %>%
+      group_by(some_grouping, int < 6) %>%
+      summarize(count = n()) %>%
+      collect(),
+    tbl
+  )
+  expect_dplyr_equal(
+    input %>%
+      group_by(some_grouping, int < 6) %>%
+      summarize(count = n(), .groups = "drop_last") %>%
+      collect(),
+    tbl
+  )
+  expect_dplyr_equal(
+    input %>%
+      group_by(some_grouping, int < 6) %>%
+      summarize(count = n(), .groups = "keep") %>%
+      collect(),
+    tbl
+  )
+  expect_dplyr_equal(
+    input %>%
+      group_by(some_grouping, int < 6) %>%
+      summarize(count = n(), .groups = "drop") %>%
+      collect(),
+    tbl
+  )
+  expect_dplyr_equal(
+    input %>%
+      group_by(some_grouping, int < 6) %>%
+      summarize(count = n(), .groups = "rowwise") %>%
+      collect(),
+    tbl,
+    warning = TRUE
+  )
+
+  # abandon_ship() raises the warning, then dplyr itself errors
+  # This isn't ideal but it's fine and won't be an issue on Datasets
+  expect_error(
+    expect_warning(
+      Table$create(tbl) %>%
+        group_by(some_grouping, int < 6) %>%
+        summarize(count = n(), .groups = "NOTVALID"),
+      "Invalid .groups argument"
+    ),
+    "NOTVALID"
   )
 })

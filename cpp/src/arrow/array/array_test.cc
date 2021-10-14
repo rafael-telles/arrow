@@ -117,7 +117,7 @@ TEST_F(TestArray, TestNullToString) {
   auto data = std::make_shared<Buffer>(nullptr, 400);
 
   std::unique_ptr<Int32Array> arr(new Int32Array(100, data));
-  ASSERT_EQ(arr->ToString(), "<InvalidArray: Missing values buffer in non-empty array>");
+  ASSERT_EQ(arr->ToString(), "<Invalid array: Missing values buffer in non-empty array>");
 }
 
 TEST_F(TestArray, TestSliceSafe) {
@@ -354,6 +354,7 @@ TEST_F(TestArray, TestMakeArrayOfNull) {
       fixed_size_list(int64(), 4),
       dictionary(int32(), utf8()),
       struct_({field("a", utf8()), field("b", int32())}),
+      smallint(),  // extension type
       // clang-format on
   };
 
@@ -456,7 +457,7 @@ TEST_F(TestArray, TestValidateNullCount) {
 void AssertAppendScalar(MemoryPool* pool, const std::shared_ptr<Scalar>& scalar) {
   std::unique_ptr<arrow::ArrayBuilder> builder;
   auto null_scalar = MakeNullScalar(scalar->type);
-  ASSERT_OK(MakeBuilder(pool, scalar->type, &builder));
+  ASSERT_OK(MakeBuilderExactIndex(pool, scalar->type, &builder));
   ASSERT_OK(builder->AppendScalar(*scalar));
   ASSERT_OK(builder->AppendScalar(*scalar));
   ASSERT_OK(builder->AppendScalar(*null_scalar));
@@ -471,15 +472,18 @@ void AssertAppendScalar(MemoryPool* pool, const std::shared_ptr<Scalar>& scalar)
   ASSERT_EQ(out->length(), 9);
 
   const bool can_check_nulls = internal::HasValidityBitmap(out->type()->id());
+  // For a dictionary builder, the output dictionary won't necessarily be the same
+  const bool can_check_values = !is_dictionary(out->type()->id());
 
   if (can_check_nulls) {
     ASSERT_EQ(out->null_count(), 4);
   }
+
   for (const auto index : {0, 1, 3, 5, 6}) {
     ASSERT_FALSE(out->IsNull(index));
     ASSERT_OK_AND_ASSIGN(auto scalar_i, out->GetScalar(index));
     ASSERT_OK(scalar_i->ValidateFull());
-    AssertScalarsEqual(*scalar, *scalar_i, /*verbose=*/true);
+    if (can_check_values) AssertScalarsEqual(*scalar, *scalar_i, /*verbose=*/true);
   }
   for (const auto index : {2, 4, 7, 8}) {
     ASSERT_EQ(out->IsNull(index), can_check_nulls);
@@ -540,10 +544,12 @@ static ScalarVector GetScalars() {
                                           sparse_union_ty),
       std::make_shared<SparseUnionScalar>(std::make_shared<Int32Scalar>(100), 42,
                                           sparse_union_ty),
+      std::make_shared<SparseUnionScalar>(42, sparse_union_ty),
       std::make_shared<DenseUnionScalar>(std::make_shared<Int32Scalar>(101), 6,
                                          dense_union_ty),
       std::make_shared<DenseUnionScalar>(std::make_shared<Int32Scalar>(101), 42,
                                          dense_union_ty),
+      std::make_shared<DenseUnionScalar>(42, dense_union_ty),
       DictionaryScalar::Make(ScalarFromJSON(int8(), "1"),
                              ArrayFromJSON(utf8(), R"(["foo", "bar"])")),
       DictionaryScalar::Make(ScalarFromJSON(uint8(), "1"),
@@ -575,8 +581,6 @@ TEST_F(TestArray, TestMakeArrayFromScalar) {
   }
 
   for (auto scalar : scalars) {
-    // TODO(ARROW-13197): appending dictionary scalars not implemented
-    if (is_dictionary(scalar->type->id())) continue;
     AssertAppendScalar(pool_, scalar);
   }
 }
@@ -634,9 +638,6 @@ TEST_F(TestArray, TestMakeArrayFromMapScalar) {
 TEST_F(TestArray, TestAppendArraySlice) {
   auto scalars = GetScalars();
   for (const auto& scalar : scalars) {
-    // TODO(ARROW-13573): appending dictionary arrays not implemented
-    if (is_dictionary(scalar->type->id())) continue;
-
     ARROW_SCOPED_TRACE(*scalar->type);
     ASSERT_OK_AND_ASSIGN(auto array, MakeArrayFromScalar(*scalar, 16));
     ASSERT_OK_AND_ASSIGN(auto nulls, MakeArrayOfNull(scalar->type, 16));
@@ -1576,6 +1577,7 @@ TYPED_TEST(TestPrimitiveBuilder, TestAppendValuesStdBool) {
 }
 
 TYPED_TEST(TestPrimitiveBuilder, TestAdvance) {
+  ARROW_SUPPRESS_DEPRECATION_WARNING
   int64_t n = 1000;
   ASSERT_OK(this->builder_->Reserve(n));
 
@@ -1586,6 +1588,7 @@ TYPED_TEST(TestPrimitiveBuilder, TestAdvance) {
 
   int64_t too_many = this->builder_->capacity() - 1000 + 1;
   ASSERT_RAISES(Invalid, this->builder_->Advance(too_many));
+  ARROW_UNSUPPRESS_DEPRECATION_WARNING
 }
 
 TYPED_TEST(TestPrimitiveBuilder, TestResize) {
@@ -1603,7 +1606,9 @@ TYPED_TEST(TestPrimitiveBuilder, TestReserve) {
   ASSERT_OK(this->builder_->Reserve(100));
   ASSERT_EQ(0, this->builder_->length());
   ASSERT_GE(100, this->builder_->capacity());
+  ARROW_SUPPRESS_DEPRECATION_WARNING
   ASSERT_OK(this->builder_->Advance(100));
+  ARROW_UNSUPPRESS_DEPRECATION_WARNING
   ASSERT_EQ(100, this->builder_->length());
   ASSERT_GE(100, this->builder_->capacity());
 

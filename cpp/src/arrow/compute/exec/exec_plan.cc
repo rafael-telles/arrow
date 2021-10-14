@@ -17,6 +17,7 @@
 
 #include "arrow/compute/exec/exec_plan.h"
 
+#include <sstream>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -52,6 +53,9 @@ struct ExecPlanImpl : public ExecPlan {
   }
 
   ExecNode* AddNode(std::unique_ptr<ExecNode> node) {
+    if (node->label().empty()) {
+      node->SetLabel(std::to_string(auto_label_counter_++));
+    }
     if (node->num_inputs() == 0) {
       sources_.push_back(node.get());
     }
@@ -100,7 +104,7 @@ struct ExecPlanImpl : public ExecPlan {
       futures.push_back(node->finished());
     }
 
-    finished_ = AllComplete(std::move(futures));
+    finished_ = AllFinished(futures);
     return st;
   }
 
@@ -119,7 +123,7 @@ struct ExecPlanImpl : public ExecPlan {
     }
   }
 
-  NodeVector TopoSort() {
+  NodeVector TopoSort() const {
     struct Impl {
       const std::vector<std::unique_ptr<ExecNode>>& nodes;
       std::unordered_set<ExecNode*> visited;
@@ -152,11 +156,21 @@ struct ExecPlanImpl : public ExecPlan {
     return std::move(Impl{nodes_}.sorted);
   }
 
+  std::string ToString() const {
+    std::stringstream ss;
+    ss << "ExecPlan with " << nodes_.size() << " nodes:" << std::endl;
+    for (const auto& node : TopoSort()) {
+      ss << node->ToString() << std::endl;
+    }
+    return ss.str();
+  }
+
   Future<> finished_ = Future<>::MakeFinished();
   bool started_ = false, stopped_ = false;
   std::vector<std::unique_ptr<ExecNode>> nodes_;
   NodeVector sources_, sinks_;
   NodeVector sorted_nodes_;
+  uint32_t auto_label_counter_ = 0;
 };
 
 ExecPlanImpl* ToDerived(ExecPlan* ptr) { return checked_cast<ExecPlanImpl*>(ptr); }
@@ -197,6 +211,8 @@ void ExecPlan::StopProducing() { ToDerived(this)->StopProducing(); }
 
 Future<> ExecPlan::finished() { return ToDerived(this)->finished_; }
 
+std::string ExecPlan::ToString() const { return ToDerived(this)->ToString(); }
+
 ExecNode::ExecNode(ExecPlan* plan, NodeVector inputs,
                    std::vector<std::string> input_labels,
                    std::shared_ptr<Schema> output_schema, int num_outputs)
@@ -232,6 +248,36 @@ Status ExecNode::Validate() const {
   return Status::OK();
 }
 
+std::string ExecNode::ToString() const {
+  std::stringstream ss;
+  ss << kind_name() << "{\"" << label_ << '"';
+  if (!inputs_.empty()) {
+    ss << ", inputs=[";
+    for (size_t i = 0; i < inputs_.size(); i++) {
+      if (i > 0) ss << ", ";
+      ss << input_labels_[i] << ": \"" << inputs_[i]->label() << '"';
+    }
+    ss << ']';
+  }
+
+  if (!outputs_.empty()) {
+    ss << ", outputs=[";
+    for (size_t i = 0; i < outputs_.size(); i++) {
+      if (i > 0) ss << ", ";
+      ss << "\"" << outputs_[i]->label() << "\"";
+    }
+    ss << ']';
+  }
+
+  const std::string extra = ToStringExtra();
+  if (!extra.empty()) ss << ", " << extra;
+
+  ss << '}';
+  return ss.str();
+}
+
+std::string ExecNode::ToStringExtra() const { return ""; }
+
 bool ExecNode::ErrorIfNotOk(Status status) {
   if (status.ok()) return false;
 
@@ -239,6 +285,107 @@ bool ExecNode::ErrorIfNotOk(Status status) {
     out->ErrorReceived(this, out == outputs_.back() ? std::move(status) : status);
   }
   return true;
+}
+
+MapNode::MapNode(ExecPlan* plan, std::vector<ExecNode*> inputs,
+                 std::shared_ptr<Schema> output_schema, bool async_mode)
+    : ExecNode(plan, std::move(inputs), /*input_labels=*/{"target"},
+               std::move(output_schema),
+               /*num_outputs=*/1) {
+  if (async_mode) {
+    executor_ = plan_->exec_context()->executor();
+  } else {
+    executor_ = nullptr;
+  }
+}
+
+void MapNode::ErrorReceived(ExecNode* input, Status error) {
+  DCHECK_EQ(input, inputs_[0]);
+  outputs_[0]->ErrorReceived(this, std::move(error));
+}
+
+void MapNode::InputFinished(ExecNode* input, int total_batches) {
+  DCHECK_EQ(input, inputs_[0]);
+  outputs_[0]->InputFinished(this, total_batches);
+  if (input_counter_.SetTotal(total_batches)) {
+    this->Finish();
+  }
+}
+
+Status MapNode::StartProducing() { return Status::OK(); }
+
+void MapNode::PauseProducing(ExecNode* output) {}
+
+void MapNode::ResumeProducing(ExecNode* output) {}
+
+void MapNode::StopProducing(ExecNode* output) {
+  DCHECK_EQ(output, outputs_[0]);
+  StopProducing();
+}
+
+void MapNode::StopProducing() {
+  if (executor_) {
+    this->stop_source_.RequestStop();
+  }
+  if (input_counter_.Cancel()) {
+    this->Finish();
+  }
+  inputs_[0]->StopProducing(this);
+}
+
+Future<> MapNode::finished() { return finished_; }
+
+void MapNode::SubmitTask(std::function<Result<ExecBatch>(ExecBatch)> map_fn,
+                         ExecBatch batch) {
+  Status status;
+  if (finished_.is_finished()) {
+    return;
+  }
+  auto task = [this, map_fn, batch]() {
+    auto guarantee = batch.guarantee;
+    auto output_batch = map_fn(std::move(batch));
+    if (ErrorIfNotOk(output_batch.status())) {
+      return output_batch.status();
+    }
+    output_batch->guarantee = guarantee;
+    outputs_[0]->InputReceived(this, output_batch.MoveValueUnsafe());
+    return Status::OK();
+  };
+
+  if (executor_) {
+    status = task_group_.AddTask([this, task]() -> Result<Future<>> {
+      return this->executor_->Submit(this->stop_source_.token(), [this, task]() {
+        auto status = task();
+        if (this->input_counter_.Increment()) {
+          this->Finish(status);
+        }
+        return status;
+      });
+    });
+  } else {
+    status = task();
+    if (input_counter_.Increment()) {
+      this->Finish(status);
+    }
+  }
+  if (!status.ok()) {
+    if (input_counter_.Cancel()) {
+      this->Finish(status);
+    }
+    inputs_[0]->StopProducing(this);
+    return;
+  }
+}
+
+void MapNode::Finish(Status finish_st /*= Status::OK()*/) {
+  if (executor_) {
+    task_group_.End().AddCallback([this, finish_st](const Status& st) {
+      Status final_status = finish_st & st;
+      this->finished_.MarkFinished(final_status);
+    });
+  } else {
+    this->finished_.MarkFinished(finish_st);
+  }
 }
 
 std::shared_ptr<RecordBatchReader> MakeGeneratorReader(
@@ -314,6 +461,7 @@ void RegisterProjectNode(ExecFactoryRegistry*);
 void RegisterUnionNode(ExecFactoryRegistry*);
 void RegisterAggregateNode(ExecFactoryRegistry*);
 void RegisterSinkNode(ExecFactoryRegistry*);
+void RegisterHashJoinNode(ExecFactoryRegistry*);
 
 }  // namespace internal
 
@@ -327,6 +475,7 @@ ExecFactoryRegistry* default_exec_factory_registry() {
       internal::RegisterUnionNode(this);
       internal::RegisterAggregateNode(this);
       internal::RegisterSinkNode(this);
+      internal::RegisterHashJoinNode(this);
     }
 
     Result<Factory> GetFactory(const std::string& factory_name) override {

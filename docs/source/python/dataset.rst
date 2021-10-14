@@ -31,16 +31,16 @@ The ``pyarrow.dataset`` module provides functionality to efficiently work with
 tabular, potentially larger than memory, and multi-file datasets. This includes:
 
 * A unified interface that supports different sources and file formats
-  (Parquet, Feather / Arrow IPC, and CSV files) and different file systems
+  (Parquet, ORC, Feather / Arrow IPC, and CSV files) and different file systems
   (local, cloud).
 * Discovery of sources (crawling directories, handle directory-based partitioned
   datasets, basic schema normalization, ..)
 * Optimized reading with predicate pushdown (filtering rows), projection
   (selecting and deriving columns), and optionally parallel reading.
 
-Currently, only Parquet, Feather / Arrow IPC, and CSV files are supported. The
-goal is to expand this in the future to other file formats and data sources
-(e.g. database connections).
+Currently, only Parquet, ORC, Feather / Arrow IPC, and CSV files are
+supported. The goal is to expand this in the future to other file formats and
+data sources (e.g. database connections).
 
 For those familiar with the existing :class:`pyarrow.parquet.ParquetDataset` for
 reading Parquet datasets: ``pyarrow.dataset``'s goal is similar but not specific
@@ -119,8 +119,8 @@ Reading different file formats
 
 The above examples use Parquet files as dataset sources but the Dataset API
 provides a consistent interface across multiple file formats and filesystems.
-Currently, Parquet, Feather / Arrow IPC, and CSV file formats are supported;
-more formats are planned in the future.
+Currently, Parquet, ORC, Feather / Arrow IPC, and CSV file formats are
+supported; more formats are planned in the future.
 
 If we save the table as Feather files instead of Parquet files:
 
@@ -147,7 +147,7 @@ The format name as a string, like::
 
 is short hand for a default constructed :class:`ParquetFileFormat`::
 
-    ds.dataset(..., format=ds.ParquetFileForma())
+    ds.dataset(..., format=ds.ParquetFileFormat())
 
 The :class:`FileFormat` objects can be customized using keywords. For example::
 
@@ -572,7 +572,7 @@ into memory:
     # other method that yields record batches.  In addition, you can pass a dataset
     # into write_dataset directly but this method is useful if you want to customize
     # the scanner (e.g. to filter the input dataset or set a maximum batch size)
-    scanner = input_dataset.scanner()
+    scanner = input_dataset.scanner(use_async=True)
 
     ds.write_dataset(scanner, new_root, format="parquet", partitioning=new_part)
 
@@ -614,6 +614,9 @@ that are unique to a particular format.  For example, to allow truncated timesta
 Parquet files:
 
 .. ipython:: python
+
+    dataset_root = base / "sample_dataset2"
+    dataset_root.mkdir(exist_ok=True)
 
     parquet_format = ds.ParquetFileFormat()
     write_options = parquet_format.make_write_options(allow_truncated_timestamps=True)
