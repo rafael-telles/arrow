@@ -993,6 +993,14 @@ message CommandGetPrimaryKeys {
   string table = 3;
 }
 
+enum UpdateDeleteRules {
+  CASCADE = 0;
+  RESTRICT = 1;
+  SET_NULL = 2;
+  NO_ACTION = 3;
+  SET_DEFAULT = 4;
+}
+
 /*
  * Represents a request to retrieve a description of the foreign key columns that reference the given table's
  * primary key columns (the foreign keys exported by a table) of a table on a Flight SQL enabled backend.
@@ -1038,14 +1046,6 @@ message CommandGetExportedKeys {
 
   // Specifies the foreign key table to get the foreign keys for.
   string table = 3;
-}
-
-enum UpdateDeleteRules {
-  CASCADE = 0;
-  RESTRICT = 1;
-  SET_NULL = 2;
-  NO_ACTION = 3;
-  SET_DEFAULT = 4;
 }
 
 /*
@@ -1097,6 +1097,80 @@ message CommandGetImportedKeys {
 
   // Specifies the primary key table to get the foreign keys for.
   string table = 3;
+}
+
+/*
+ * Represents a request to retrieve a description of the foreign key columns in the given foreign key table that
+ * reference the primary key or the columns representing a unique constraint of the parent table (could be the same
+ * or a different table) on a Flight SQL enabled backend.
+ * Used in the command member of FlightDescriptor for the following RPC calls:
+ *  - GetSchema: return the schema of the query.
+ *  - GetFlightInfo: execute the catalog metadata request.
+ *
+ * The returned schema will be:
+ * <
+ *  pk_catalog_name: utf8,
+ *  pk_schema_name: utf8,
+ *  pk_table_name: utf8 not null,
+ *  pk_column_name: utf8 not null,
+ *  fk_catalog_name: utf8,
+ *  fk_schema_name: utf8,
+ *  fk_table_name: utf8 not null,
+ *  fk_column_name: utf8 not null,
+ *  key_sequence: int not null,
+ *  fk_key_name: utf8,
+ *  pk_key_name: utf8,
+ *  update_rule: uint1 not null,
+ *  delete_rule: uint1 not null
+ * >
+ * The returned data should be ordered by pk_catalog_name, pk_schema_name, pk_table_name, pk_key_name, then key_sequence.
+ * update_rule and delete_rule returns a byte that is equivalent to actions:
+ *    - 0 = CASCADE
+ *    - 1 = RESTRICT
+ *    - 2 = SET NULL
+ *    - 3 = NO ACTION
+ *    - 4 = SET DEFAULT
+ */
+message CommandGetCrossReference {
+  option (experimental) = true;
+
+  /**
+   * The catalog name where the parent table is.
+   * An empty string retrieves those without a catalog.
+   * If omitted the catalog name should not be used to narrow the search.
+   */
+  optional string pk_catalog = 1;
+
+  /**
+   * The Schema name where the parent table is.
+   * An empty string retrieves those without a schema.
+   * If omitted the schema name should not be used to narrow the search.
+   */
+  optional string pk_schema = 2;
+
+  /**
+   * The parent table name. It cannot be null.
+   */
+  string pk_table = 3;
+
+  /**
+   * The catalog name where the foreign table is.
+   * An empty string retrieves those without a catalog.
+   * If omitted the catalog name should not be used to narrow the search.
+   */
+  optional string fk_catalog = 4;
+
+  /**
+   * The schema name where the foreign table is.
+   * An empty string retrieves those without a schema.
+   * If omitted the schema name should not be used to narrow the search.
+   */
+  optional string fk_schema = 5;
+
+  /**
+   * The foreign table name. It cannot be null.
+   */
+  string fk_table = 6;
 }
 
 // SQL Execution Action Messages
