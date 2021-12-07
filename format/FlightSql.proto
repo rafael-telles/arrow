@@ -868,7 +868,7 @@ enum SqlSupportsConvert {
 }
 
 /*
- * Represents a request to retrieve information about data type supported ona Flight SQL enabled backend.
+ * Represents a request to retrieve information about data types supported on a Flight SQL enabled backend.
  * Used in the command member of FlightDescriptor for the following RPC calls:
  *  - GetSchema: return the schema of the query.
  *  - GetFlightInfo: execute the catalog metadata request.
@@ -895,7 +895,8 @@ enum SqlSupportsConvert {
  *   num_prec_radix: int,
  *   interval_precision. int
  * >
- * The returned data should be ordered by data_type and then by type_name.
+ * The returned data should be ordered by data_type (ascending order) and
+ * then by type_name (ascending order).
  */
 message CommandGetTypeInfo {
   option (experimental) = true;
