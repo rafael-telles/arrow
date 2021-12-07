@@ -21,6 +21,7 @@
 
 #include <memory>
 #include <string>
+#include <arrow/flight/sql/server.h>
 
 #include "arrow/api.h"
 #include "arrow/flight/sql/example/sqlite_statement.h"
@@ -102,10 +103,13 @@ class SQLiteFlightSqlServer : public FlightSqlServerBase {
 
   arrow::Result<std::unique_ptr<FlightDataStream>> DoGetTables(
       const ServerCallContext& context, const GetTables& command) override;
-  arrow::Result<std::unique_ptr<FlightInfo>> GetFlightInfoTypeInfo(const ServerCallContext& context,
-                                                                   const FlightDescriptor& descriptor) override;
-  arrow::Result<std::unique_ptr<FlightDataStream>> DoGetTypeInfo(
-    const ServerCallContext& context) override;
+  arrow::Result<std::unique_ptr<FlightInfo>>
+  GetFlightInfoTypeInfo(const ServerCallContext &context,
+                        const arrow::flight::sql::GetTypeInfo &command,
+                        const FlightDescriptor &descriptor) override;
+  arrow::Result<std::unique_ptr<FlightDataStream>>
+  DoGetTypeInfo(const ServerCallContext &context,
+                const arrow::flight::sql::GetTypeInfo &command) override;
   arrow::Result<std::unique_ptr<FlightInfo>> GetFlightInfoTableTypes(
       const ServerCallContext& context, const FlightDescriptor& descriptor) override;
   arrow::Result<std::unique_ptr<FlightDataStream>> DoGetTableTypes(

@@ -28,6 +28,7 @@
 #include "arrow/flight/sql/sql_info_internal.h"
 #include "arrow/type.h"
 #include "arrow/util/checked_cast.h"
+#include "server.h"
 
 #define PROPERTY_TO_OPTIONAL(COMMAND, PROPERTY) \
   COMMAND.has_##PROPERTY() ? util::make_optional(COMMAND.PROPERTY()) : util::nullopt
@@ -151,6 +152,17 @@ arrow::Result<StatementQuery> ParseCommandStatementQuery(
 
   StatementQuery result;
   result.query = command.query();
+  return result;
+}
+
+arrow::Result<GetTypeInfo> ParseCommandGetTypeInfo(const google::protobuf::Any& any) {
+  pb::sql::CommandGetTypeInfo command;
+  if (!any.UnpackTo(&command)) {
+    return Status::Invalid("Unable to unpack CommandGetTypeInfo.");
+  }
+
+  GetTypeInfo result;
+  result.data_type = PROPERTY_TO_OPTIONAL(command, data_type);
   return result;
 }
 
@@ -289,7 +301,10 @@ Status FlightSqlServerBase::GetFlightInfo(const ServerCallContext& context,
     ARROW_ASSIGN_OR_RAISE(*info, GetFlightInfoTableTypes(context, request));
     return Status::OK();
   } else if (any.Is<pb::sql::CommandGetTypeInfo>()) {
-    ARROW_ASSIGN_OR_RAISE(*info, GetFlightInfoTypeInfo(context, request))
+    ARROW_ASSIGN_OR_RAISE(GetTypeInfo internal_command,
+                          ParseCommandGetTypeInfo(any));
+    ARROW_ASSIGN_OR_RAISE(*info, GetFlightInfoTypeInfo(context,
+                                                       internal_command, request))
     return Status::OK();
   } else if (any.Is<pb::sql::CommandGetSqlInfo>()) {
     ARROW_ASSIGN_OR_RAISE(GetSqlInfo internal_command,
@@ -359,7 +374,8 @@ Status FlightSqlServerBase::DoGet(const ServerCallContext& context, const Ticket
     ARROW_ASSIGN_OR_RAISE(*stream, DoGetTableTypes(context));
     return Status::OK();
   } else if (any.Is<pb::sql::CommandGetTypeInfo>()) {
-    ARROW_ASSIGN_OR_RAISE(*stream, DoGetTypeInfo(context))
+    ARROW_ASSIGN_OR_RAISE(GetTypeInfo command, ParseCommandGetTypeInfo(any));
+    ARROW_ASSIGN_OR_RAISE(*stream, DoGetTypeInfo(context, command))
     return Status::OK();
   } else if (any.Is<pb::sql::CommandGetSqlInfo>()) {
     ARROW_ASSIGN_OR_RAISE(GetSqlInfo internal_command,
@@ -544,13 +560,16 @@ arrow::Result<std::unique_ptr<FlightInfo>> FlightSqlServerBase::GetFlightInfoSql
   return std::unique_ptr<FlightInfo>(new FlightInfo(result));
 }
 
-arrow::Result<std::unique_ptr<FlightInfo>> FlightSqlServerBase::GetFlightInfoTypeInfo(
-  const ServerCallContext& context, const FlightDescriptor& descriptor) {
+arrow::Result<std::unique_ptr<FlightInfo>>
+FlightSqlServerBase::GetFlightInfoTypeInfo(const ServerCallContext &context,
+                                           const GetTypeInfo &command,
+                                           const FlightDescriptor &descriptor) {
   return Status::NotImplemented("GetFlightInfoTypeInfo not implemented");
 }
 
-arrow::Result<std::unique_ptr<FlightDataStream>> FlightSqlServerBase::DoGetTypeInfo(
-  const ServerCallContext& context) {
+arrow::Result<std::unique_ptr<FlightDataStream>>
+FlightSqlServerBase::DoGetTypeInfo(const ServerCallContext &context,
+                                   const GetTypeInfo &command) {
   return Status::NotImplemented("DoGetTypeInfo not implemented");
 }
 

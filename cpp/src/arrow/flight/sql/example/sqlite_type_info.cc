@@ -24,9 +24,8 @@ namespace flight {
 namespace sql {
 namespace example {
 
-/// \brief Gets the harded-coded type info from Sqlite.
-/// \return A record batch.
-  std::shared_ptr<RecordBatch> DoGetTypeInfoResult(const std::shared_ptr<Schema>& schema) {
+  std::shared_ptr<RecordBatch>
+  DoGetTypeInfoResult(const std::shared_ptr<Schema>& schema) {
     auto type_name_array = ArrayFromJSON(utf8(), R"(["bit", "tinyint", "bigint", "longvarbinary",
                             "varbinary", "text", "longvarchar", "char",
                             "integer", "smallint", "float", "double",
@@ -62,6 +61,25 @@ namespace example {
                                           local_type_name, minimal_scale, maximum_scale,
                                           sql_data_type, sql_datetime_sub, num_prec_radix,
                                           interval_precision});
+  }
+
+  std::shared_ptr<RecordBatch>
+  DoGetTypeInfoResult(const std::shared_ptr<Schema> &schema, int data_type_filter) {
+    auto record_batch = DoGetTypeInfoResult(schema);
+
+    std::vector<int> data_type_vector{-7, -6, -5, -4, -3, -1, -1, 1, 4,
+                                      5, 6, 8, 8, 12, 91, 92, 93};
+
+    auto it = std::find(data_type_vector.begin(), data_type_vector.end(), data_type_filter);
+
+    long begin_offset = std::distance(data_type_vector.begin(), it);
+
+    int counter = 1;
+    while (data_type_vector[begin_offset + counter] == -data_type_filter) {
+      counter++;
+    }
+
+    return record_batch->Slice(begin_offset, counter);
   }
 }  // namespace example
 }  // namespace sql
