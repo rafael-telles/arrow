@@ -76,7 +76,7 @@ namespace example {
     auto it = std::find(data_type_vector.begin(), data_type_vector.end(),
                         data_type_filter);
 
-    int64_t begin_offset = *it;
+    int64_t begin_offset = std::distance(data_type_vector.begin(), it);
 
     // Check if there is more than one of the same data type in the vector, if there
     // is more than one we increase the counter.
