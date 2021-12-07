@@ -21,7 +21,6 @@
 
 #include <memory>
 #include <string>
-#include <arrow/flight/sql/server.h>
 
 #include "arrow/api.h"
 #include "arrow/flight/sql/example/sqlite_statement.h"

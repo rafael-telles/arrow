@@ -28,7 +28,6 @@
 #include "arrow/flight/sql/sql_info_internal.h"
 #include "arrow/type.h"
 #include "arrow/util/checked_cast.h"
-#include "server.h"
 
 #define PROPERTY_TO_OPTIONAL(COMMAND, PROPERTY) \
   COMMAND.has_##PROPERTY() ? util::make_optional(COMMAND.PROPERTY()) : util::nullopt

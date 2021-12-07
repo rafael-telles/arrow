@@ -17,6 +17,7 @@
 
 #include <arrow/testing/gtest_util.h>
 
+#include "arrow/flight/sql/example/sqlite_type_info.h"
 #include "arrow/flight/sql/types.h"
 
 namespace arrow {
@@ -54,27 +55,29 @@ namespace example {
     auto num_prec_radix = ArrayFromJSON(int64(), R"([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])");
     auto interval_precision = ArrayFromJSON(int64(), R"([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])");
 
-    return RecordBatch::Make(schema, 17, {type_name_array, data_type, column_size, literal_prefix,
-                                          literal_suffix, create_params, nullable,
-                                          case_sensitive, serachable, unsigned_attribute,
-                                          fixed_prec_scale, auto_unique_value,
-                                          local_type_name, minimal_scale, maximum_scale,
-                                          sql_data_type, sql_datetime_sub, num_prec_radix,
-                                          interval_precision});
+    return RecordBatch::Make(schema, 17, {
+      type_name_array, data_type, column_size, literal_prefix,
+      literal_suffix, create_params, nullable,
+      case_sensitive, serachable, unsigned_attribute,
+      fixed_prec_scale, auto_unique_value,
+      local_type_name, minimal_scale, maximum_scale,
+      sql_data_type, sql_datetime_sub, num_prec_radix,
+      interval_precision});
   }
 
   std::shared_ptr<RecordBatch>
   DoGetTypeInfoResult(const std::shared_ptr<Schema> &schema, int data_type_filter) {
     auto record_batch = DoGetTypeInfoResult(schema);
 
-    std::vector<int> data_type_vector{-7, -6, -5, -4, -3, -1, -1, 1, 4,
-                                      5, 6, 8, 8, 12, 91, 92, 93};
+    std::vector<int16_t> data_type_vector{-7, -6, -5, -4, -3, -1, -1, 1, 4,
+                                           5, 6, 8, 8, 12, 91, 92, 93};
 
-    auto it = std::find(data_type_vector.begin(), data_type_vector.end(), data_type_filter);
+    auto it = std::find(data_type_vector.begin(), data_type_vector.end(),
+                        data_type_filter);
 
-    long begin_offset = std::distance(data_type_vector.begin(), it);
+    int64_t begin_offset = std::distance(data_type_vector.begin(), it);
 
-    int counter = 1;
+    int16_t counter = 1;
     while (data_type_vector[begin_offset + counter] == -data_type_filter) {
       counter++;
     }

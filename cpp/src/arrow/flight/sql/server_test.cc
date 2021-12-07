@@ -392,8 +392,8 @@ TEST_F(TestFlightSqlServer, TestCommandGetTypeInfo) {
   const std::shared_ptr<RecordBatch> &batch = example::DoGetTypeInfoResult(
     expected_schema);
 
-  const arrow::Result<std::shared_ptr<Table>> &expected_table_result = Table::FromRecordBatches(
-    {batch});
+  const arrow::Result<std::shared_ptr<Table>> &expected_table_result =
+    Table::FromRecordBatches({batch});
 
   std::shared_ptr<Table> table;
   std::shared_ptr<Table> expected_table;
@@ -417,8 +417,8 @@ TEST_F(TestFlightSqlServer, TestCommandGetTypeInfoWithFiltering) {
   const std::shared_ptr<RecordBatch> &batch = example::DoGetTypeInfoResult(
     expected_schema, data_type);
 
-  const arrow::Result<std::shared_ptr<Table>> &expected_table_result = Table::FromRecordBatches(
-    {batch});
+  const arrow::Result<std::shared_ptr<Table>> &expected_table_result =
+    Table::FromRecordBatches({batch});
 
   std::shared_ptr<Table> table;
   std::shared_ptr<Table> expected_table;

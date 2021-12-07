@@ -32,7 +32,6 @@ namespace example {
 /// \return A record batch.
   std::shared_ptr<RecordBatch>
   DoGetTypeInfoResult(const std::shared_ptr<Schema> &schema, int data_type_filter);
-
 }  // namespace example
 }  // namespace sql
 }  // namespace flight

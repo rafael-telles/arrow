@@ -30,8 +30,7 @@
 #include "arrow/flight/sql/example/sqlite_statement.h"
 #include "arrow/flight/sql/example/sqlite_statement_batch_reader.h"
 #include "arrow/flight/sql/example/sqlite_tables_schema_batch_reader.h"
-#include "arrow/flight/sql/server.h"
-#include "sqlite_type_info.h"
+#include "arrow/flight/sql/example/sqlite_type_info.h"
 
 namespace arrow {
 namespace flight {
@@ -779,9 +778,10 @@ arrow::Result<std::unique_ptr<FlightDataStream>> SQLiteFlightSqlServer::DoGetTab
 }
 
 arrow::Result<std::unique_ptr<FlightInfo>>
-SQLiteFlightSqlServer::GetFlightInfoTypeInfo(const ServerCallContext &context,
-                                             const arrow::flight::sql::GetTypeInfo &command,
-                                             const FlightDescriptor &descriptor) {
+SQLiteFlightSqlServer::GetFlightInfoTypeInfo(
+    const ServerCallContext &context,
+    const arrow::flight::sql::GetTypeInfo &command,
+    const FlightDescriptor &descriptor) {
   return impl_->GetFlightInfoTypeInfo(context, command, descriptor);
 }
 
