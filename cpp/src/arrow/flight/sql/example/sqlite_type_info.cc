@@ -72,16 +72,21 @@ namespace example {
     std::vector<int16_t> data_type_vector{-7, -6, -5, -4, -3, -1, -1, 1, 4,
                                            5, 6, 8, 8, 12, 91, 92, 93};
 
+    //Checking if the data_type is in the vector with the sqlite3 data types
     auto it = std::find(data_type_vector.begin(), data_type_vector.end(),
                         data_type_filter);
 
-    int64_t begin_offset = std::distance(data_type_vector.begin(), it);
+    int64_t begin_offset = *it;
 
+    // Check if there is more than one of the same data type in the vector, if there
+    // is more than one we increase the counter.
     int16_t counter = 1;
-    while (data_type_vector[begin_offset + counter] == -data_type_filter) {
+    while (data_type_vector[begin_offset + counter] == data_type_filter) {
       counter++;
     }
 
+    // The complete record batch with all the data type is sliced using the
+    // begin_offset and the counter as the length,
     return record_batch->Slice(begin_offset, counter);
   }
 }  // namespace example
