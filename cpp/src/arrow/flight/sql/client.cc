@@ -241,6 +241,13 @@ arrow::Result<std::unique_ptr<FlightInfo>> FlightSqlClient::GetTableTypes(
   return GetFlightInfoForCommand(*this, options, command);
 }
 
+arrow::Result<std::unique_ptr<FlightInfo>> FlightSqlClient::GetTypeInfo(
+  const FlightCallOptions& options) {
+  flight_sql_pb::CommandGetTypeInfo command;
+
+  return GetFlightInfoForCommand(*this, options, command);
+}
+
 arrow::Result<std::unique_ptr<FlightStreamReader>> FlightSqlClient::DoGet(
     const FlightCallOptions& options, const Ticket& ticket) {
   std::unique_ptr<FlightStreamReader> stream;
