@@ -405,6 +405,31 @@ TEST_F(TestFlightSqlServer, TestCommandGetTypeInfo) {
   AssertTablesEqual(*expected_table, *table);
 }
 
+TEST_F(TestFlightSqlServer, TestCommandGetTypeInfoWithFiltering) {
+  int data_type = -4;
+  ASSERT_OK_AND_ASSIGN(auto flight_info, sql_client->GetTypeInfo({}, data_type));
+
+  ASSERT_OK_AND_ASSIGN(auto stream,
+                       sql_client->DoGet({}, flight_info->endpoints()[0].ticket));
+
+  const std::shared_ptr<Schema>& expected_schema = SqlSchema::GetTypeInfoSchema();
+
+  const std::shared_ptr<RecordBatch> &batch = example::DoGetTypeInfoResult(
+    expected_schema, data_type);
+
+  const arrow::Result<std::shared_ptr<Table>> &expected_table_result = Table::FromRecordBatches(
+    {batch});
+
+  std::shared_ptr<Table> table;
+  std::shared_ptr<Table> expected_table;
+  ASSERT_OK(stream->ReadAll(&table));
+
+  ASSERT_OK_AND_ASSIGN(expected_table, expected_table_result);
+
+  ASSERT_TRUE(table->schema()->Equals(*expected_schema));
+  AssertTablesEqual(*expected_table, *table);
+}
+
 TEST_F(TestFlightSqlServer, TestCommandGetCatalogs) {
   ASSERT_OK_AND_ASSIGN(auto flight_info, sql_client->GetCatalogs({}));
 
