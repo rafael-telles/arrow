@@ -20,6 +20,7 @@
 #include <sqlite3.h>
 
 #include <sstream>
+#include <arrow/flight/sql/column_metadata.h>
 
 #include "arrow/flight/sql/example/sqlite_server.h"
 #include "arrow/flight/sql/example/sqlite_statement.h"
@@ -71,6 +72,14 @@ Status SqliteTablesWithSchemaBatchReader::ReadNext(std::shared_ptr<RecordBatch>*
       std::string sqlite_table_name = std::string(reinterpret_cast<const char*>(
           sqlite3_column_text(schema_statement->GetSqlite3Stmt(), 0)));
       if (sqlite_table_name == table_name) {
+        ColumnMetadata columnMetadata = ColumnMetadata::Create()
+          .TableName(sqlite_table_name)
+          .Precision(10)
+          .Scale(15)
+          .IsAutoIncrement(true)
+          .IsCaseSensitive(false)
+          .IsReadOnly(false);
+
         const char* column_name = reinterpret_cast<const char*>(
             sqlite3_column_text(schema_statement->GetSqlite3Stmt(), 1));
         const char* column_type = reinterpret_cast<const char*>(
@@ -78,7 +87,8 @@ Status SqliteTablesWithSchemaBatchReader::ReadNext(std::shared_ptr<RecordBatch>*
         int nullable = sqlite3_column_int(schema_statement->GetSqlite3Stmt(), 3);
 
         column_fields.push_back(
-            arrow::field(column_name, GetArrowType(column_type), nullable == 0, NULL));
+            arrow::field(column_name, GetArrowType(column_type),
+                         nullable == 0, columnMetadata.GetMetadataMap()));
       }
     }
     const arrow::Result<std::shared_ptr<Buffer>>& value =

@@ -20,6 +20,7 @@
 #include <sqlite3.h>
 
 #include <boost/algorithm/string.hpp>
+#include <arrow/flight/sql/column_metadata.h>
 
 #include "arrow/flight/sql/example/sqlite_server.h"
 
@@ -83,6 +84,7 @@ arrow::Result<std::shared_ptr<Schema>> SqliteStatement::GetSchema() const {
     // prepared statements, in this case it returns a dense_union type covering any type
     // SQLite supports.
     const int column_type = sqlite3_column_type(stmt_, i);
+    const char *string = sqlite3_column_table_name(stmt_, i);
     std::shared_ptr<DataType> data_type = GetDataTypeFromSqliteType(column_type);
     if (data_type->id() == Type::NA) {
       // Try to retrieve column type from sqlite3_column_decltype
@@ -96,7 +98,27 @@ arrow::Result<std::shared_ptr<Schema>> SqliteStatement::GetSchema() const {
       }
     }
 
-    fields.push_back(arrow::field(column_name, data_type));
+    ColumnMetadata column_metadata;
+    if (string == NULL) {
+      column_metadata = ColumnMetadata::Create()
+        .Precision(10)
+        .Scale(15)
+        .IsAutoIncrement(true)
+        .IsCaseSensitive(false)
+        .IsReadOnly(false);
+    } else {
+      std::string table_name(string);
+      ColumnMetadata columnMetadata = ColumnMetadata::Create()
+        .TableName(table_name)
+        .Precision(10)
+        .Scale(15)
+        .IsAutoIncrement(true)
+        .IsCaseSensitive(false)
+        .IsReadOnly(false);
+    }
+
+    fields.push_back(arrow::field(column_name, data_type,
+                                  column_metadata.GetMetadataMap()));
   }
 
   return arrow::schema(fields);
