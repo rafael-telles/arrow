@@ -31,6 +31,7 @@
 #include "arrow/flight/test_util.h"
 #include "arrow/flight/types.h"
 #include "arrow/testing/gtest_util.h"
+#include "arrow/flight/sql/column_metadata.h"
 
 using ::testing::_;
 using ::testing::Ref;
@@ -359,14 +360,26 @@ TEST_F(TestFlightSqlServer, TestCommandGetTablesWithIncludedSchemas) {
   std::shared_ptr<Table> table;
   ASSERT_OK(stream->ReadAll(&table));
 
+  std::string tableName = "intTable";
+
   const auto catalog_name = ArrayFromJSON(utf8(), R"([null])");
   const auto schema_name = ArrayFromJSON(utf8(), R"([null])");
   const auto table_name = ArrayFromJSON(utf8(), R"(["intTable"])");
   const auto table_type = ArrayFromJSON(utf8(), R"(["table"])");
 
+  ColumnMetadata columnMetadata = ColumnMetadata::Create()
+    .TableName(tableName)
+    .Precision(10)
+    .Scale(15)
+    .IsAutoIncrement(true)
+    .IsCaseSensitive(false)
+    .IsReadOnly(false);
+
   const std::shared_ptr<Schema> schema_table = arrow::schema(
-      {arrow::field("id", int64(), true), arrow::field("keyName", utf8(), true),
-       arrow::field("value", int64(), true), arrow::field("foreignId", int64(), true)});
+  {arrow::field("id", int64(), true, columnMetadata.GetMetadataMap()),
+   arrow::field("keyName", utf8(), true, columnMetadata.GetMetadataMap()),
+   arrow::field("value", int64(), true, columnMetadata.GetMetadataMap()),
+   arrow::field("foreignId", int64(), true, columnMetadata.GetMetadataMap())});
 
   ASSERT_OK_AND_ASSIGN(auto schema_buffer, ipc::SerializeSchema(*schema_table));
 
@@ -463,9 +476,26 @@ TEST_F(TestFlightSqlServer, TestCommandPreparedStatementQuery) {
   std::shared_ptr<Table> table;
   ASSERT_OK(stream->ReadAll(&table));
 
+  std::string table_name = "intTable";
+
+  ColumnMetadata columnMetadata = ColumnMetadata::Create()
+    .TableName(table_name)
+    .Precision(10)
+    .Scale(15)
+    .IsAutoIncrement(true)
+    .IsCaseSensitive("FALSE")
+    .IsReadOnly("FALSE");
+
   const std::shared_ptr<Schema>& expected_schema =
-      arrow::schema({arrow::field("id", int64()), arrow::field("keyName", utf8()),
-                     arrow::field("value", int64()), arrow::field("foreignId", int64())});
+      arrow::schema({
+        arrow::field("id", int64(),
+                     columnMetadata.GetMetadataMap()),
+        arrow::field("keyName", utf8(),
+                     columnMetadata.GetMetadataMap()),
+        arrow::field("value", int64(),
+                     columnMetadata.GetMetadataMap()),
+        arrow::field("foreignId", int64(),
+                     columnMetadata.GetMetadataMap())});
 
   const auto id_array = ArrayFromJSON(int64(), R"([1, 2, 3, 4])");
   const auto keyname_array =
@@ -531,6 +561,10 @@ TEST_F(TestFlightSqlServer, TestCommandPreparedStatementQueryWithParameterBindin
 
   AssertTablesEqual(*expected_table, *table);
 }
+
+TEST_F(TestFlightSqlServer, TestCountQuery) {
+    ASSERT_OK_AND_EQ(4, ExecuteCountQuery("SELECT COUNT(*) FROM intTable"));
+  }
 
 TEST_F(TestFlightSqlServer, TestCommandPreparedStatementUpdateWithParameterBinding) {
   ASSERT_OK_AND_ASSIGN(
