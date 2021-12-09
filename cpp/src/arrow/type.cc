@@ -831,7 +831,8 @@ Decimal128Type::Decimal128Type(int32_t precision, int32_t scale)
 
 Result<std::shared_ptr<DataType>> Decimal128Type::Make(int32_t precision, int32_t scale) {
   if (precision < kMinPrecision || precision > kMaxPrecision) {
-    return Status::Invalid("Decimal precision out of range: ", precision);
+    return Status::Invalid("Decimal precision out of range [", int32_t(kMinPrecision),
+                           ", ", int32_t(kMaxPrecision), "]: ", precision);
   }
   return std::make_shared<Decimal128Type>(precision, scale);
 }
@@ -847,7 +848,8 @@ Decimal256Type::Decimal256Type(int32_t precision, int32_t scale)
 
 Result<std::shared_ptr<DataType>> Decimal256Type::Make(int32_t precision, int32_t scale) {
   if (precision < kMinPrecision || precision > kMaxPrecision) {
-    return Status::Invalid("Decimal precision out of range: ", precision);
+    return Status::Invalid("Decimal precision out of range [", int32_t(kMinPrecision),
+                           ", ", int32_t(kMaxPrecision), "]: ", precision);
   }
   return std::make_shared<Decimal256Type>(precision, scale);
 }
@@ -1168,6 +1170,30 @@ Result<FieldRef> FieldRef::FromDotPath(const std::string& dot_path_arg) {
   FieldRef out;
   out.Flatten(std::move(children));
   return out;
+}
+
+std::string FieldRef::ToDotPath() const {
+  struct Visitor {
+    std::string operator()(const FieldPath& path) {
+      std::string out;
+      for (int i : path.indices()) {
+        out += "[" + std::to_string(i) + "]";
+      }
+      return out;
+    }
+
+    std::string operator()(const std::string& name) { return "." + name; }
+
+    std::string operator()(const std::vector<FieldRef>& children) {
+      std::string out;
+      for (const auto& child : children) {
+        out += child.ToDotPath();
+      }
+      return out;
+    }
+  };
+
+  return util::visit(Visitor{}, impl_);
 }
 
 size_t FieldRef::hash() const {
@@ -2350,7 +2376,7 @@ void InitStaticData() {
                       timestamp(TimeUnit::NANO)};
 
   // Interval types
-  g_interval_types = {day_time_interval(), month_interval()};
+  g_interval_types = {day_time_interval(), month_interval(), month_day_nano_interval()};
 
   // Base binary types (without FixedSizeBinary)
   g_base_binary_types = {binary(), utf8(), large_binary(), large_utf8()};

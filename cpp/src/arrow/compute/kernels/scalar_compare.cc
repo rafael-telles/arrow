@@ -125,6 +125,23 @@ struct Maximum {
 
 // Implement Less, LessEqual by flipping arguments to Greater, GreaterEqual
 
+template <typename OutType, typename ArgType, typename Op>
+struct CompareTimestamps
+    : public applicator::ScalarBinaryEqualTypes<OutType, ArgType, Op> {
+  using Base = applicator::ScalarBinaryEqualTypes<OutType, ArgType, Op>;
+
+  static Status Exec(KernelContext* ctx, const ExecBatch& batch, Datum* out) {
+    const auto& lhs = checked_cast<const TimestampType&>(*batch[0].type());
+    const auto& rhs = checked_cast<const TimestampType&>(*batch[1].type());
+    if (lhs.timezone().empty() ^ rhs.timezone().empty()) {
+      return Status::Invalid(
+          "Cannot compare timestamp with timezone to timestamp without timezone, got: ",
+          lhs, " and ", rhs);
+    }
+    return Base::Exec(ctx, batch, out);
+  }
+};
+
 template <typename Op>
 void AddIntegerCompare(const std::shared_ptr<DataType>& ty, ScalarFunction* func) {
   auto exec =
@@ -210,10 +227,8 @@ std::shared_ptr<ScalarFunction> MakeCompareFunction(std::string name,
   // Add timestamp kernels
   for (auto unit : TimeUnit::values()) {
     InputType in_type(match::TimestampTypeUnit(unit));
-    auto exec =
-        GeneratePhysicalInteger<applicator::ScalarBinaryEqualTypes, BooleanType, Op>(
-            int64());
-    DCHECK_OK(func->AddKernel({in_type, in_type}, boolean(), std::move(exec)));
+    DCHECK_OK(func->AddKernel({in_type, in_type}, boolean(),
+                              CompareTimestamps<BooleanType, TimestampType, Op>::Exec));
   }
 
   // Duration
@@ -405,7 +420,7 @@ struct ScalarMinMax {
           [&](OutValue value) {
             auto u = out_it();
             if (!output->buffers[0] ||
-                BitUtil::GetBit(output->buffers[0]->data(), index)) {
+                bit_util::GetBit(output->buffers[0]->data(), index)) {
               writer.Write(Op::template Call<OutValue, OutValue, OutValue>(u, value));
             } else {
               writer.Write(value);
@@ -479,17 +494,18 @@ const FunctionDoc less_equal_doc{
 
 const FunctionDoc min_element_wise_doc{
     "Find the element-wise minimum value",
-    ("Nulls will be ignored (default) or propagated. "
-     "NaN will be taken over null, but not over any valid float."),
+    ("Nulls are ignored (by default) or propagated.\n"
+     "NaN is preferred over null, but not over any valid value."),
     {"*args"},
     "ElementWiseAggregateOptions"};
 
 const FunctionDoc max_element_wise_doc{
     "Find the element-wise maximum value",
-    ("Nulls will be ignored (default) or propagated. "
-     "NaN will be taken over null, but not over any valid float."),
+    ("Nulls are ignored (by default) or propagated.\n"
+     "NaN is preferred over null, but not over any valid value."),
     {"*args"},
     "ElementWiseAggregateOptions"};
+
 }  // namespace
 
 void RegisterScalarComparison(FunctionRegistry* registry) {

@@ -133,8 +133,18 @@ struct MeanImpl : public SumImpl<ArrowType, SimdLevel> {
         (this->count < options.min_count) || (this->count == 0)) {
       out->value = std::make_shared<OutputType>(this->out_type);
     } else {
-      const SumCType mean = this->sum / this->count;
-      out->value = std::make_shared<OutputType>(mean, this->out_type);
+      SumCType quotient, remainder;
+      ARROW_ASSIGN_OR_RAISE(std::tie(quotient, remainder), this->sum.Divide(this->count));
+      // Round the decimal result based on the remainder
+      remainder.Abs();
+      if (remainder * 2 >= this->count) {
+        if (this->sum >= 0) {
+          quotient += 1;
+        } else {
+          quotient -= 1;
+        }
+      }
+      out->value = std::make_shared<OutputType>(quotient, this->out_type);
     }
     return Status::OK();
   }
@@ -444,7 +454,7 @@ struct MinMaxImpl : public ScalarAggregator {
     // First handle the leading bits
     const int64_t leading_bits = p.leading_bits;
     while (idx < leading_bits) {
-      if (BitUtil::GetBit(bitmap, offset)) {
+      if (bit_util::GetBit(bitmap, offset)) {
         local.MergeOne(arr.GetView(idx));
       }
       idx++;

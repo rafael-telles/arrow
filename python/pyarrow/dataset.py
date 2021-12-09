@@ -568,8 +568,8 @@ or tables, iterable of batches, RecordBatchReader, or URI
         Optionally provide the Schema for the Dataset, in which case it will
         not be inferred from the source.
     format : FileFormat or str
-        Currently "parquet" and "ipc"/"arrow"/"feather" are supported. For
-        Feather, only version 2 files are supported.
+        Currently "parquet", "ipc"/"arrow"/"feather", "csv", and "orc" are
+        supported. For Feather, only version 2 files are supported.
     filesystem : FileSystem or URI string, default None
         If a single path is given as source and filesystem is None, then the
         filesystem will be inferred from the path.
@@ -736,7 +736,8 @@ def _ensure_write_partitioning(part, schema, flavor):
 def write_dataset(data, base_dir, basename_template=None, format=None,
                   partitioning=None, partitioning_flavor=None, schema=None,
                   filesystem=None, file_options=None, use_threads=True,
-                  max_partitions=None, file_visitor=None):
+                  max_partitions=None, file_visitor=None,
+                  existing_data_behavior='error'):
     """
     Write a dataset to a given format and partitioning.
 
@@ -756,10 +757,10 @@ def write_dataset(data, base_dir, basename_template=None, format=None,
         "part-{i}." + format.default_extname
     format : FileFormat or str
         The format in which to write the dataset. Currently supported:
-        "parquet", "ipc"/"feather". If a FileSystemDataset is being written
-        and `format` is not specified, it defaults to the same format as the
-        specified FileSystemDataset. When writing a Table or RecordBatch, this
-        keyword is required.
+        "parquet", "ipc"/"arrow"/"feather", and "csv". If a FileSystemDataset
+        is being written and `format` is not specified, it defaults to the
+        same format as the specified FileSystemDataset. When writing a
+        Table or RecordBatch, this keyword is required.
     partitioning : Partitioning or list[str], optional
         The partitioning scheme specified with the ``partitioning()``
         function or a list of field names. When providing a list of
@@ -798,6 +799,22 @@ def write_dataset(data, base_dir, basename_template=None, format=None,
 
             def file_visitor(written_file):
                 visited_paths.append(written_file.path)
+    existing_data_behavior : 'error' | 'overwrite_or_ignore' | \
+'delete_matching'
+        Controls how the dataset will handle data that already exists in
+        the destination.  The default behavior ('error') is to raise an error
+        if any data exists in the destination.
+
+        'overwrite_or_ignore' will ignore any existing data and will
+        overwrite files with the same name as an output file.  Other
+        existing files will be ignored.  This behavior, in combination
+        with a unique basename_template for each write, will allow for
+        an append workflow.
+
+        'delete_matching' is useful when you are writing a partitioned
+        dataset.  The first time each partition directory is encountered
+        the entire directory will be deleted.  This allows you to overwrite
+        old partitions completely.
     """
     from pyarrow.fs import _resolve_filesystem_and_path
 
@@ -860,5 +877,5 @@ def write_dataset(data, base_dir, basename_template=None, format=None,
 
     _filesystemdataset_write(
         scanner, base_dir, basename_template, filesystem, partitioning,
-        file_options, max_partitions, file_visitor
+        file_options, max_partitions, file_visitor, existing_data_behavior
     )

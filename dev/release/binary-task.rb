@@ -739,8 +739,8 @@ class BinaryTask
   def define
     define_apt_tasks
     define_yum_tasks
-    define_python_tasks
     define_nuget_tasks
+    define_python_tasks
     define_summary_tasks
   end
 
@@ -1856,20 +1856,20 @@ APT::FTPArchive::Release::Description "#{apt_repository_description}";
     define_generic_data_release_tasks(label, id, release_dir)
   end
 
-  def define_python_tasks
-    define_generic_data_tasks("Python",
-                              :python,
-                              "#{rc_dir}/python/#{full_version}",
-                              "#{release_dir}/python/#{full_version}",
-                              "{python-sdist,wheel-*}/**/*")
-  end
-
   def define_nuget_tasks
     define_generic_data_tasks("NuGet",
                               :nuget,
                               "#{rc_dir}/nuget/#{full_version}",
                               "#{release_dir}/nuget/#{full_version}",
                               "nuget/**/*")
+  end
+
+  def define_python_tasks
+    define_generic_data_tasks("Python",
+                              :python,
+                              "#{rc_dir}/python/#{full_version}",
+                              "#{release_dir}/python/#{full_version}",
+                              "{python-sdist,wheel-*}/**/*")
   end
 
   def define_summary_tasks
