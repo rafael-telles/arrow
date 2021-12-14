@@ -882,10 +882,10 @@ enum SqlSupportsConvert {
  *   literal_suffix: utf8,
  *   create_params: utf8
  *   nullable: int not null,
- *   case_sensitive: bool null,
+ *   case_sensitive: bool not null,
  *   searchable: int not null,
  *   unsigned_attribute: bool,
- *   fixed_prec_scale: bool null,
+ *   fixed_prec_scale: bool not null,
  *   auto_increment: bool,
  *   local_type_name: utf8,
  *   minimum_scale: int,
@@ -893,7 +893,7 @@ enum SqlSupportsConvert {
  *   sql_data_type: int not null,
  *   sql_datetime_sub: int,
  *   num_prec_radix: int,
- *   interval_precision. int
+ *   interval_precision: int
  * >
  * The returned data should be ordered by data_type (ascending order) and
  * then by type_name (ascending order).
