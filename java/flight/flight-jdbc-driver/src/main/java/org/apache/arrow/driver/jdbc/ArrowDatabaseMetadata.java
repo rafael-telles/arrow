@@ -17,22 +17,6 @@
 
 package org.apache.arrow.driver.jdbc;
 
-import static java.sql.Types.BIGINT;
-import static java.sql.Types.BINARY;
-import static java.sql.Types.BIT;
-import static java.sql.Types.CHAR;
-import static java.sql.Types.DATE;
-import static java.sql.Types.DECIMAL;
-import static java.sql.Types.FLOAT;
-import static java.sql.Types.INTEGER;
-import static java.sql.Types.LONGNVARCHAR;
-import static java.sql.Types.LONGVARBINARY;
-import static java.sql.Types.NUMERIC;
-import static java.sql.Types.REAL;
-import static java.sql.Types.SMALLINT;
-import static java.sql.Types.TIMESTAMP;
-import static java.sql.Types.TINYINT;
-import static java.sql.Types.VARCHAR;
 import static org.apache.arrow.flight.sql.util.SqlInfoOptionsUtils.doesBitmaskTranslateToEnum;
 
 import java.io.ByteArrayInputStream;
@@ -47,7 +31,6 @@ import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumMap;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -66,7 +49,6 @@ import org.apache.arrow.flight.sql.impl.FlightSql.SqlSupportedPositionedCommands
 import org.apache.arrow.flight.sql.impl.FlightSql.SqlSupportedResultSetType;
 import org.apache.arrow.flight.sql.impl.FlightSql.SqlSupportedSubqueries;
 import org.apache.arrow.flight.sql.impl.FlightSql.SqlSupportedUnions;
-import org.apache.arrow.flight.sql.impl.FlightSql.SqlSupportsConvert;
 import org.apache.arrow.flight.sql.impl.FlightSql.SqlTransactionIsolationLevel;
 import org.apache.arrow.flight.sql.impl.FlightSql.SupportedAnsi92SqlGrammarLevel;
 import org.apache.arrow.flight.sql.impl.FlightSql.SupportedSqlGrammar;
@@ -145,30 +127,7 @@ public class ArrowDatabaseMetadata extends AvaticaDatabaseMetaData {
           Field.notNullable("IS_AUTOINCREMENT", Types.MinorType.VARCHAR.getType()),
           Field.notNullable("IS_GENERATEDCOLUMN", Types.MinorType.VARCHAR.getType())
       ));
-  private final Map<SqlInfo, Object> cachedSqlInfo =
-      Collections.synchronizedMap(new EnumMap<>(SqlInfo.class));
-  private static final Map<Integer, Integer> sqlTypesToFlightEnumConvertTypes = new HashMap<>();
-
-  static {
-    sqlTypesToFlightEnumConvertTypes.put(BIT, SqlSupportsConvert.SQL_CONVERT_BIT_VALUE);
-    sqlTypesToFlightEnumConvertTypes.put(INTEGER, SqlSupportsConvert.SQL_CONVERT_INTEGER_VALUE);
-    sqlTypesToFlightEnumConvertTypes.put(NUMERIC, SqlSupportsConvert.SQL_CONVERT_NUMERIC_VALUE);
-    sqlTypesToFlightEnumConvertTypes.put(SMALLINT, SqlSupportsConvert.SQL_CONVERT_SMALLINT_VALUE);
-    sqlTypesToFlightEnumConvertTypes.put(TINYINT, SqlSupportsConvert.SQL_CONVERT_TINYINT_VALUE);
-    sqlTypesToFlightEnumConvertTypes.put(FLOAT, SqlSupportsConvert.SQL_CONVERT_FLOAT_VALUE);
-    sqlTypesToFlightEnumConvertTypes.put(BIGINT, SqlSupportsConvert.SQL_CONVERT_BIGINT_VALUE);
-    sqlTypesToFlightEnumConvertTypes.put(REAL, SqlSupportsConvert.SQL_CONVERT_REAL_VALUE);
-    sqlTypesToFlightEnumConvertTypes.put(DECIMAL, SqlSupportsConvert.SQL_CONVERT_DECIMAL_VALUE);
-    sqlTypesToFlightEnumConvertTypes.put(BINARY, SqlSupportsConvert.SQL_CONVERT_BINARY_VALUE);
-    sqlTypesToFlightEnumConvertTypes.put(LONGVARBINARY,
-        SqlSupportsConvert.SQL_CONVERT_LONGVARBINARY_VALUE);
-    sqlTypesToFlightEnumConvertTypes.put(CHAR, SqlSupportsConvert.SQL_CONVERT_CHAR_VALUE);
-    sqlTypesToFlightEnumConvertTypes.put(VARCHAR, SqlSupportsConvert.SQL_CONVERT_VARCHAR_VALUE);
-    sqlTypesToFlightEnumConvertTypes.put(LONGNVARCHAR,
-        SqlSupportsConvert.SQL_CONVERT_LONGVARCHAR_VALUE);
-    sqlTypesToFlightEnumConvertTypes.put(DATE, SqlSupportsConvert.SQL_CONVERT_DATE_VALUE);
-    sqlTypesToFlightEnumConvertTypes.put(TIMESTAMP, SqlSupportsConvert.SQL_CONVERT_TIMESTAMP_VALUE);
-  }
+  private final Map<SqlInfo, Object> cachedSqlInfo = Collections.synchronizedMap(new EnumMap<>(SqlInfo.class));
 
   ArrowDatabaseMetadata(final AvaticaConnection connection) {
     super(connection);
@@ -254,14 +213,9 @@ public class ArrowDatabaseMetadata extends AvaticaDatabaseMetaData {
     final Map<Integer, List<Integer>> sqlSupportsConvert =
         getSqlInfoAndCacheIfCacheIsEmpty(SqlInfo.SQL_SUPPORTS_CONVERT, Map.class);
 
-    if (!sqlTypesToFlightEnumConvertTypes.containsKey(fromType)) {
-      return false;
-    }
+    final List<Integer> list = sqlSupportsConvert.get(fromType);
 
-    final List<Integer> list =
-        sqlSupportsConvert.get(sqlTypesToFlightEnumConvertTypes.get(fromType));
-
-    return list != null && list.contains(sqlTypesToFlightEnumConvertTypes.get(toType));
+    return list != null && list.contains(toType);
   }
 
   @Override
@@ -1007,10 +961,8 @@ public class ArrowDatabaseMetadata extends AvaticaDatabaseMetaData {
     final IntVector nullableVector = (IntVector) currentRoot.getVector("NULLABLE");
     final IntVector ordinalPositionVector = (IntVector) currentRoot.getVector("ORDINAL_POSITION");
     final VarCharVector isNullableVector = (VarCharVector) currentRoot.getVector("IS_NULLABLE");
-    final VarCharVector isAutoincrementVector =
-        (VarCharVector) currentRoot.getVector("IS_AUTOINCREMENT");
-    final VarCharVector isGeneratedColumnVector =
-        (VarCharVector) currentRoot.getVector("IS_GENERATEDCOLUMN");
+    final VarCharVector isAutoincrementVector = (VarCharVector) currentRoot.getVector("IS_AUTOINCREMENT");
+    final VarCharVector isGeneratedColumnVector = (VarCharVector) currentRoot.getVector("IS_GENERATEDCOLUMN");
 
     for (int i = 0; i < tableColumnsSize; i++, ordinalIndex++) {
       final Field field = tableColumns.get(i);
