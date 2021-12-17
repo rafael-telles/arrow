@@ -103,12 +103,8 @@ public final class ArrowFlightJdbcFlightStreamResultSet
     return resultSet;
   }
 
-  FlightStreamQueue getFlightStreamQueue() {
-    return flightStreamQueue;
-  }
-
   private void loadNewQueue() {
-    Optional.ofNullable(getFlightStreamQueue()).ifPresent(AutoCloseables::closeNoChecked);
+    Optional.ofNullable(flightStreamQueue).ifPresent(AutoCloseables::closeNoChecked);
     flightStreamQueue = createNewQueue(connection.getExecutorService());
   }
 
@@ -129,16 +125,15 @@ public final class ArrowFlightJdbcFlightStreamResultSet
     return this;
   }
 
-  private AvaticaResultSet execute(final FlightInfo flightInfo) throws SQLException {
+  private void execute(final FlightInfo flightInfo) throws SQLException {
     loadNewQueue();
-    getFlightStreamQueue().enqueue(connection.getClientHandler().getStreams(flightInfo));
+    flightStreamQueue.enqueue(connection.getClientHandler().getStreams(flightInfo));
     loadNewFlightStream();
 
     // Ownership of the root will be passed onto the cursor.
     if (currentFlightStream != null) {
       executeForCurrentFlightStream();
     }
-    return this;
   }
 
   private void executeForCurrentFlightStream() throws SQLException {
@@ -208,7 +203,6 @@ public final class ArrowFlightJdbcFlightStreamResultSet
       currentFlightStream.cancel("Cancel", null);
     }
 
-    final FlightStreamQueue flightStreamQueue = getFlightStreamQueue();
     if (flightStreamQueue != null) {
       try {
         flightStreamQueue.close();
@@ -221,7 +215,18 @@ public final class ArrowFlightJdbcFlightStreamResultSet
   @Override
   public synchronized void close() {
     try {
-      AutoCloseables.close(currentVectorSchemaRoot, currentFlightStream, getFlightStreamQueue());
+
+      if (flightStreamQueue != null) {
+        flightStreamQueue.close();
+      } else {
+        if (currentVectorSchemaRoot != null) {
+          currentVectorSchemaRoot.close();
+        }
+        if (currentFlightStream != null) {
+          currentFlightStream.close();
+        }
+      }
+
     } catch (final Exception e) {
       throw new RuntimeException(e);
     } finally {
