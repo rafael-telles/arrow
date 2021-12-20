@@ -36,6 +36,7 @@ import org.apache.arrow.util.AutoCloseables;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
+import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.calcite.avatica.AvaticaResultSet;
 import org.apache.calcite.avatica.AvaticaResultSetMetaData;
 import org.apache.calcite.avatica.AvaticaStatement;
@@ -165,6 +166,15 @@ public class ArrowFlightJdbcVectorSchemaRootResultSet extends AvaticaResultSet {
   void execute(final VectorSchemaRoot vectorSchemaRoot) {
     final List<Field> fields = vectorSchemaRoot.getSchema().getFields();
     final List<ColumnMetaData> columns = convertArrowFieldsToColumnMetaDataList(fields);
+    signature.columns.clear();
+    signature.columns.addAll(columns);
+
+    this.vectorSchemaRoot = vectorSchemaRoot;
+    execute2(new ArrowFlightJdbcCursor(vectorSchemaRoot), this.signature.columns);
+  }
+
+  void execute(final VectorSchemaRoot vectorSchemaRoot, final Schema schema) {
+    final List<ColumnMetaData> columns = convertArrowFieldsToColumnMetaDataList(schema.getFields());
     signature.columns.clear();
     signature.columns.addAll(columns);
 

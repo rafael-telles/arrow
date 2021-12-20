@@ -148,7 +148,13 @@ public final class ArrowFlightJdbcFlightStreamResultSet
     } else {
       currentVectorSchemaRoot = originalRoot;
     }
-    execute(currentVectorSchemaRoot);
+
+    if (statement != null) {
+      final FlightInfo currentFlightInfo = ((ArrowFlightInfoStatement) statement).executeFlightInfoQuery();
+      execute(currentVectorSchemaRoot, currentFlightInfo.getSchema());
+    } else {
+      execute(currentVectorSchemaRoot);
+    }
   }
 
   @Override
@@ -215,18 +221,13 @@ public final class ArrowFlightJdbcFlightStreamResultSet
   @Override
   public synchronized void close() {
     try {
-
       if (flightStreamQueue != null) {
         flightStreamQueue.close();
       } else {
-        if (currentVectorSchemaRoot != null) {
-          currentVectorSchemaRoot.close();
-        }
         if (currentFlightStream != null) {
           currentFlightStream.close();
         }
       }
-
     } catch (final Exception e) {
       throw new RuntimeException(e);
     } finally {
