@@ -40,7 +40,6 @@ import java.util.stream.IntStream;
 
 import org.apache.arrow.flight.sql.FlightSqlClient;
 import org.apache.arrow.flight.sql.FlightSqlClient.PreparedStatement;
-import org.apache.arrow.flight.sql.FlightSqlColumnMetadata;
 import org.apache.arrow.flight.sql.FlightSqlProducer;
 import org.apache.arrow.flight.sql.example.FlightSqlExample;
 import org.apache.arrow.flight.sql.impl.FlightSql;
@@ -48,6 +47,7 @@ import org.apache.arrow.flight.sql.impl.FlightSql.SqlSupportedCaseSensitivity;
 import org.apache.arrow.flight.sql.util.TableRef;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
+import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.UInt1Vector;
@@ -248,75 +248,19 @@ public class TestFlightSql {
               "FOREIGNTABLE",
               "TABLE",
               new Schema(asList(
-                  new Field("ID", new FieldType(false, MinorType.INT.getType(), null,
-                      new FlightSqlColumnMetadata.Builder()
-                          .catalogName("")
-                          .schemaName("APP")
-                          .tableName("FOREIGNTABLE")
-                          .precision(10)
-                          .scale(0)
-                          .isAutoIncrement(true)
-                          .build().getMetadataMap()), null),
-                  new Field("FOREIGNNAME", new FieldType(true, MinorType.VARCHAR.getType(), null,
-                      new FlightSqlColumnMetadata.Builder()
-                          .catalogName("")
-                          .schemaName("APP")
-                          .tableName("FOREIGNTABLE")
-                          .precision(100)
-                          .scale(0)
-                          .isAutoIncrement(false)
-                          .build().getMetadataMap()), null),
-                  new Field("VALUE", new FieldType(true, MinorType.INT.getType(), null,
-                      new FlightSqlColumnMetadata.Builder()
-                          .catalogName("")
-                          .schemaName("APP")
-                          .tableName("FOREIGNTABLE")
-                          .precision(10)
-                          .scale(0)
-                          .isAutoIncrement(false)
-                          .build().getMetadataMap()), null))).toJson()),
+                  new Field("ID", new FieldType(false, MinorType.INT.getType(), null), null),
+                  Field.nullable("FOREIGNNAME", MinorType.VARCHAR.getType()),
+                  Field.nullable("VALUE", MinorType.INT.getType()))).toJson()),
           asList(
               null /* TODO No catalog yet */,
               "APP",
               "INTTABLE",
               "TABLE",
               new Schema(asList(
-                  new Field("ID", new FieldType(false, MinorType.INT.getType(), null,
-                      new FlightSqlColumnMetadata.Builder()
-                          .catalogName("")
-                          .schemaName("APP")
-                          .tableName("INTTABLE")
-                          .precision(10)
-                          .scale(0)
-                          .isAutoIncrement(true)
-                          .build().getMetadataMap()), null),
-                  new Field("KEYNAME", new FieldType(true, MinorType.VARCHAR.getType(), null,
-                      new FlightSqlColumnMetadata.Builder()
-                          .catalogName("")
-                          .schemaName("APP")
-                          .tableName("INTTABLE")
-                          .precision(100)
-                          .scale(0)
-                          .isAutoIncrement(false)
-                          .build().getMetadataMap()), null),
-                  new Field("VALUE", new FieldType(true, MinorType.INT.getType(), null,
-                      new FlightSqlColumnMetadata.Builder()
-                          .catalogName("")
-                          .schemaName("APP")
-                          .tableName("INTTABLE")
-                          .precision(10)
-                          .scale(0)
-                          .isAutoIncrement(false)
-                          .build().getMetadataMap()), null),
-                  new Field("FOREIGNID", new FieldType(true, MinorType.INT.getType(), null,
-                      new FlightSqlColumnMetadata.Builder()
-                          .catalogName("")
-                          .schemaName("APP")
-                          .tableName("INTTABLE")
-                          .precision(10)
-                          .scale(0)
-                          .isAutoIncrement(false)
-                          .build().getMetadataMap()), null))).toJson()));
+                  new Field("ID", new FieldType(false, MinorType.INT.getType(), null), null),
+                  Field.nullable("KEYNAME", MinorType.VARCHAR.getType()),
+                  Field.nullable("VALUE", MinorType.INT.getType()),
+                  Field.nullable("FOREIGNID", MinorType.INT.getType()))).toJson()));
       collector.checkThat(results, is(expectedResults));
     }
   }
@@ -620,6 +564,76 @@ public class TestFlightSql {
   }
 
   @Test
+  public void testGetTypeInfo() {
+    FlightInfo flightInfo = sqlClient.getTypeInfo();
+
+    FlightStream stream = sqlClient.getStream(flightInfo.getEndpoints().get(0).getTicket());
+
+    final List<List<String>> results = getResults(stream);
+
+    final List<List<String>> matchers = ImmutableList.of(
+        asList("BIGINT", "-5", "19", null, null, null, "1", "false", "2", "false", "false", "true", "BIGINT", "0", "0",
+            null, null, "10"),
+        asList("LONG VARCHAR FOR BIT DATA", "-4", "32700", "X'", "'", null, "1", "false", "0", "true", "false", "false",
+            "LONG VARCHAR FOR BIT DATA", null, null, null, null, null),
+        asList("VARCHAR () FOR BIT DATA", "-3", "32672", "X'", "'", "length", "1", "false", "2", "true", "false",
+            "false", "VARCHAR () FOR BIT DATA", null, null, null, null, null),
+        asList("CHAR () FOR BIT DATA", "-2", "254", "X'", "'", "length", "1", "false", "2", "true", "false", "false",
+            "CHAR () FOR BIT DATA", null, null, null, null, null),
+        asList("LONG VARCHAR", "-1", "32700", "'", "'", null, "1", "true", "1", "true", "false", "false",
+            "LONG VARCHAR", null, null, null, null, null),
+        asList("CHAR", "1", "254", "'", "'", "length", "1", "true", "3", "true", "false", "false", "CHAR", null, null,
+            null, null, null),
+        asList("NUMERIC", "2", "31", null, null, "precision,scale", "1", "false", "2", "false", "true", "false",
+            "NUMERIC", "0", "31", null, null, "10"),
+        asList("DECIMAL", "3", "31", null, null, "precision,scale", "1", "false", "2", "false", "true", "false",
+            "DECIMAL", "0", "31", null, null, "10"),
+        asList("INTEGER", "4", "10", null, null, null, "1", "false", "2", "false", "false", "true", "INTEGER", "0", "0",
+            null, null, "10"),
+        asList("SMALLINT", "5", "5", null, null, null, "1", "false", "2", "false", "false", "true", "SMALLINT", "0",
+            "0", null, null, "10"),
+        asList("FLOAT", "6", "52", null, null, "precision", "1", "false", "2", "false", "false", "false", "FLOAT", null,
+            null, null, null, "2"),
+        asList("REAL", "7", "23", null, null, null, "1", "false", "2", "false", "false", "false", "REAL", null, null,
+            null, null, "2"),
+        asList("DOUBLE", "8", "52", null, null, null, "1", "false", "2", "false", "false", "false", "DOUBLE", null,
+            null, null, null, "2"),
+        asList("VARCHAR", "12", "32672", "'", "'", "length", "1", "true", "3", "true", "false", "false", "VARCHAR",
+            null, null, null, null, null),
+        asList("BOOLEAN", "16", "1", null, null, null, "1", "false", "2", "true", "false", "false", "BOOLEAN", null,
+            null, null, null, null),
+        asList("DATE", "91", "10", "DATE'", "'", null, "1", "false", "2", "true", "false", "false", "DATE", "0", "0",
+            null, null, "10"),
+        asList("TIME", "92", "8", "TIME'", "'", null, "1", "false", "2", "true", "false", "false", "TIME", "0", "0",
+            null, null, "10"),
+        asList("TIMESTAMP", "93", "29", "TIMESTAMP'", "'", null, "1", "false", "2", "true", "false", "false",
+            "TIMESTAMP", "0", "9", null, null, "10"),
+        asList("OBJECT", "2000", null, null, null, null, "1", "false", "2", "true", "false", "false", "OBJECT", null,
+            null, null, null, null),
+        asList("BLOB", "2004", "2147483647", null, null, "length", "1", "false", "0", null, "false", null, "BLOB", null,
+            null, null, null, null),
+        asList("CLOB", "2005", "2147483647", "'", "'", "length", "1", "true", "1", null, "false", null, "CLOB", null,
+            null, null, null, null),
+        asList("XML", "2009", null, null, null, null, "1", "true", "0", "false", "false", "false", "XML", null, null,
+            null, null, null));
+    collector.checkThat(results, is(matchers));
+  }
+
+  @Test
+  public void testGetTypeInfoWithFiltering() {
+    FlightInfo flightInfo = sqlClient.getTypeInfo(-5);
+
+    FlightStream stream = sqlClient.getStream(flightInfo.getEndpoints().get(0).getTicket());
+
+    final List<List<String>> results = getResults(stream);
+
+    final List<List<String>> matchers = ImmutableList.of(
+        asList("BIGINT", "-5", "19", null, null, null, "1", "false", "2", "false", "false", "true", "BIGINT", "0", "0",
+            null, null, "10"));
+    collector.checkThat(results, is(matchers));
+  }
+
+  @Test
   public void testGetCommandCrossReference() {
     final FlightInfo flightInfo = sqlClient.getCrossReference(TableRef.of(null, null,
         "FOREIGNTABLE"), TableRef.of(null, null, "INTTABLE"));
@@ -689,7 +703,8 @@ public class TestFlightSql {
               }
             } else if (fieldVector instanceof IntVector) {
               for (int rowIndex = 0; rowIndex < rowCount; rowIndex++) {
-                results.get(rowIndex).add(String.valueOf(((IntVector) fieldVector).get(rowIndex)));
+                Object data = fieldVector.getObject(rowIndex);
+                results.get(rowIndex).add(isNull(data) ? null : Objects.toString(data));
               }
             } else if (fieldVector instanceof VarBinaryVector) {
               final VarBinaryVector varbinaryVector = (VarBinaryVector) fieldVector;
@@ -722,6 +737,11 @@ public class TestFlightSql {
               final UInt1Vector uInt1Vector = (UInt1Vector) fieldVector;
               for (int rowIndex = 0; rowIndex < rowCount; rowIndex++) {
                 final Object data = uInt1Vector.getObject(rowIndex);
+                results.get(rowIndex).add(isNull(data) ? null : Objects.toString(data));
+              }
+            } else if (fieldVector instanceof BitVector) {
+              for (int rowIndex = 0; rowIndex < rowCount; rowIndex++) {
+                Object data = fieldVector.getObject(rowIndex);
                 results.get(rowIndex).add(isNull(data) ? null : Objects.toString(data));
               }
             } else {
