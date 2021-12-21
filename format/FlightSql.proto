@@ -882,10 +882,10 @@ enum SqlSupportsConvert {
  *   literal_suffix: utf8,
  *   create_params: utf8
  *   nullable: int not null,
- *   case_sensitive: bool null,
+ *   case_sensitive: bool not null,
  *   searchable: int not null,
  *   unsigned_attribute: bool,
- *   fixed_prec_scale: bool null,
+ *   fixed_prec_scale: bool not null,
  *   auto_increment: bool,
  *   local_type_name: utf8,
  *   minimum_scale: int,
