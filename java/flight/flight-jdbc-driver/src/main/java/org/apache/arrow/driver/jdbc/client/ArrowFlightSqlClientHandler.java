@@ -20,6 +20,7 @@ package org.apache.arrow.driver.jdbc.client;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
@@ -28,7 +29,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.arrow.driver.jdbc.client.utils.ClientAuthenticationUtils;
-import org.apache.arrow.flight.CallHeaders;
 import org.apache.arrow.flight.CallOption;
 import org.apache.arrow.flight.FlightCallHeaders;
 import org.apache.arrow.flight.FlightClient;
@@ -56,6 +56,7 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
 
   private final FlightSqlClient sqlClient;
   private final Set<CallOption> options = new HashSet<>();
+  private static final String SUPPORTS_COMPLEX_TYPES_HEADER = "supports_complex_types";
 
   ArrowFlightSqlClientHandler(final FlightSqlClient sqlClient,
                               final Collection<CallOption> options) {
@@ -486,6 +487,8 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
      */
     public ArrowFlightSqlClientHandler build() throws SQLException {
       try {
+        final FlightCallHeaders flightCallHeaders = new FlightCallHeaders();
+        final List<CallOption> extraHeadersHandshake = new ArrayList<>();
         ClientIncomingAuthHeaderMiddleware.Factory authFactory = null;
         if (username != null) {
           authFactory =
@@ -507,22 +510,23 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
               ClientAuthenticationUtils.getCertificateStream(keyStorePath, keyStorePassword));
         }
         final FlightClient client = clientBuilder.build();
-        if (authFactory != null) {
-          options.add(
-              ClientAuthenticationUtils.getAuthenticate(client, username, password, authFactory));
-        }
-
-        final FlightCallHeaders flightCallHeaders = new FlightCallHeaders();
-        final String supportsComplexTypesHeaderString = "supports_complex_types";
 
         if (supportsComplexTypes) {
-          flightCallHeaders.insert(supportsComplexTypesHeaderString, "true");
+          flightCallHeaders.insert(SUPPORTS_COMPLEX_TYPES_HEADER, "true");
         } else {
-          flightCallHeaders.insert(supportsComplexTypesHeaderString, "false");
+          flightCallHeaders.insert(SUPPORTS_COMPLEX_TYPES_HEADER, "false");
         }
 
         if (!flightCallHeaders.keys().isEmpty()) {
-          options.add(new HeaderCallOption(flightCallHeaders));
+          final CallOption headerCallOption = new HeaderCallOption(flightCallHeaders);
+          options.add(headerCallOption);
+          extraHeadersHandshake.add(headerCallOption);
+        }
+
+        if (authFactory != null) {
+          options.add(
+              ClientAuthenticationUtils.getAuthenticate(
+                  client, username, password, authFactory, extraHeadersHandshake.toArray(new CallOption[0])));
         }
 
         return ArrowFlightSqlClientHandler.createNewHandler(client, options);
