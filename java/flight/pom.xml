@@ -33,7 +33,6 @@
         <module>flight-core</module>
         <module>flight-grpc</module>
         <module>flight-sql</module>
-        <module>flight-jdbc-driver</module>
     </modules>
 
     <build>
