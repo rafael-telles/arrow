@@ -731,6 +731,9 @@ class Target(Serializable):
             branch = repo.branch.branch_name
         if remote is None:
             remote = repo.remote_url
+
+        print(f'got version: {version}')
+
         if version is None:
             version = get_version(repo.path)
         if email is None:
