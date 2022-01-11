@@ -644,10 +644,6 @@ dataset___ScannerBuilder__UseThreads <- function(sb, threads) {
   invisible(.Call(`_arrow_dataset___ScannerBuilder__UseThreads`, sb, threads))
 }
 
-dataset___ScannerBuilder__UseAsync <- function(sb, use_async) {
-  invisible(.Call(`_arrow_dataset___ScannerBuilder__UseAsync`, sb, use_async))
-}
-
 dataset___ScannerBuilder__BatchSize <- function(sb, batch_size) {
   invisible(.Call(`_arrow_dataset___ScannerBuilder__BatchSize`, sb, batch_size))
 }
@@ -686,10 +682,6 @@ dataset___Scanner__head <- function(scanner, n) {
 
 dataset___Scanner__schema <- function(sc) {
   .Call(`_arrow_dataset___Scanner__schema`, sc)
-}
-
-dataset___ScanTask__get_batches <- function(scan_task) {
-  .Call(`_arrow_dataset___ScanTask__get_batches`, scan_task)
 }
 
 dataset___Dataset__Write <- function(file_write_options, filesystem, base_dir, partitioning, basename_template, scanner, existing_data_behavior, max_partitions) {
@@ -1254,6 +1246,10 @@ io___BufferOutputStream__Tell <- function(stream) {
 
 io___BufferOutputStream__Write <- function(stream, bytes) {
   invisible(.Call(`_arrow_io___BufferOutputStream__Write`, stream, bytes))
+}
+
+MakeReencodeInputStream <- function(wrapped, from) {
+  .Call(`_arrow_MakeReencodeInputStream`, wrapped, from)
 }
 
 json___ReadOptions__initialize <- function(use_threads, block_size) {

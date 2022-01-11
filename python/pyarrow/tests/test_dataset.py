@@ -215,34 +215,27 @@ def dataset(mockfs):
 
 
 @pytest.fixture(params=[
-    (True, True),
-    (True, False),
-    (False, True),
-    (False, False)
-], ids=['threaded-async', 'threaded-sync', 'serial-async', 'serial-sync'])
+    (True),
+    (False)
+], ids=['threaded', 'serial'])
 def dataset_reader(request):
     '''
     Fixture which allows dataset scanning operations to be
-    run with/without threads and with/without async
+    run with/without threads
     '''
-    use_threads, use_async = request.param
+    use_threads = request.param
 
     class reader:
 
         def __init__(self):
             self.use_threads = use_threads
-            self.use_async = use_async
 
         def _patch_kwargs(self, kwargs):
             if 'use_threads' in kwargs:
                 raise Exception(
                     ('Invalid use of dataset_reader, do not specify'
                      ' use_threads'))
-            if 'use_async' in kwargs:
-                raise Exception(
-                    'Invalid use of dataset_reader, do not specify use_async')
             kwargs['use_threads'] = use_threads
-            kwargs['use_async'] = use_async
 
         def to_table(self, dataset, **kwargs):
             self._patch_kwargs(kwargs)
@@ -428,6 +421,31 @@ def test_scanner(dataset, dataset_reader):
     assert table.num_rows == scanner.count_rows()
 
 
+def test_scanner_async_deprecated(dataset):
+    with pytest.warns(FutureWarning):
+        dataset.scanner(use_async=False)
+    with pytest.warns(FutureWarning):
+        dataset.scanner(use_async=True)
+    with pytest.warns(FutureWarning):
+        dataset.to_table(use_async=False)
+    with pytest.warns(FutureWarning):
+        dataset.to_table(use_async=True)
+    with pytest.warns(FutureWarning):
+        dataset.head(1, use_async=False)
+    with pytest.warns(FutureWarning):
+        dataset.head(1, use_async=True)
+    with pytest.warns(FutureWarning):
+        ds.Scanner.from_dataset(dataset, use_async=False)
+    with pytest.warns(FutureWarning):
+        ds.Scanner.from_dataset(dataset, use_async=True)
+    with pytest.warns(FutureWarning):
+        ds.Scanner.from_fragment(
+            next(dataset.get_fragments()), use_async=False)
+    with pytest.warns(FutureWarning):
+        ds.Scanner.from_fragment(
+            next(dataset.get_fragments()), use_async=True)
+
+
 @pytest.mark.parquet
 def test_head(dataset, dataset_reader):
     result = dataset_reader.head(dataset, 0)
@@ -454,15 +472,15 @@ def test_head(dataset, dataset_reader):
 @pytest.mark.parquet
 def test_take(dataset, dataset_reader):
     fragment = next(dataset.get_fragments())
-    indices = pa.array([1, 3])
-    assert dataset_reader.take(
-        fragment, indices) == dataset_reader.to_table(fragment).take(indices)
+    for indices in [[1, 3], pa.array([1, 3])]:
+        expected = dataset_reader.to_table(fragment).take(indices)
+        assert dataset_reader.take(fragment, indices) == expected
     with pytest.raises(IndexError):
         dataset_reader.take(fragment, pa.array([5]))
 
-    indices = pa.array([1, 7])
-    assert dataset_reader.take(
-        dataset, indices) == dataset_reader.to_table(dataset).take(indices)
+    for indices in [[1, 7], pa.array([1, 7])]:
+        assert dataset_reader.take(
+            dataset, indices) == dataset_reader.to_table(dataset).take(indices)
     with pytest.raises(IndexError):
         dataset_reader.take(dataset, pa.array([10]))
 
@@ -713,8 +731,7 @@ def test_file_format_pickling():
     ]
     try:
         formats.append(ds.OrcFileFormat())
-    except (ImportError, AttributeError):
-        # catch AttributeError for Python 3.6
+    except ImportError:
         pass
 
     if pq is not None:
@@ -2106,10 +2123,8 @@ def test_construct_in_memory(dataset_reader):
         assert pa.Table.from_batches(list(dataset.to_batches())) == table
 
 
-@pytest.mark.parametrize('use_threads,use_async',
-                         [(False, False), (False, True),
-                          (True, False), (True, True)])
-def test_scan_iterator(use_threads, use_async):
+@pytest.mark.parametrize('use_threads', [False, True])
+def test_scan_iterator(use_threads):
     batch = pa.RecordBatch.from_arrays([pa.array(range(10))], names=["a"])
     table = pa.Table.from_batches([batch])
     # When constructed from readers/iterators, should be one-shot
@@ -2121,8 +2136,7 @@ def test_scan_iterator(use_threads, use_async):
     ):
         # Scanning the fragment consumes the underlying iterator
         scanner = ds.Scanner.from_batches(
-            factory(), schema=schema, use_threads=use_threads,
-            use_async=use_async)
+            factory(), schema=schema, use_threads=use_threads)
         assert scanner.to_table() == table
         with pytest.raises(pa.ArrowInvalid, match=match):
             scanner.to_table()
@@ -2809,8 +2823,7 @@ def test_orc_scan_options(tempdir, dataset_reader):
 def test_orc_format_not_supported():
     try:
         from pyarrow.dataset import OrcFileFormat  # noqa
-    except (ImportError, AttributeError):
-        # catch AttributeError for Python 3.6
+    except ImportError:
         # ORC is not available, test error message
         with pytest.raises(
             ValueError, match="not built with support for the ORC file"
@@ -3474,7 +3487,7 @@ def test_write_dataset_with_scanner(tempdir):
     dataset = ds.dataset(tempdir, format='ipc', partitioning=["b"])
 
     with tempfile.TemporaryDirectory() as tempdir2:
-        ds.write_dataset(dataset.scanner(columns=["b", "c"], use_async=True),
+        ds.write_dataset(dataset.scanner(columns=["b", "c"]),
                          tempdir2, format='ipc', partitioning=["b"])
 
         load_back = ds.dataset(tempdir2, format='ipc', partitioning=["b"])
@@ -3513,8 +3526,7 @@ def test_write_dataset_with_backpressure(tempdir):
             yield batch
 
     scanner = ds.Scanner.from_batches(
-        counting_generator(), schema=schema, use_threads=True,
-        use_async=True)
+        counting_generator(), schema=schema, use_threads=True)
 
     write_thread = threading.Thread(
         target=lambda: ds.write_dataset(
@@ -3976,11 +3988,6 @@ def test_write_iterable(tempdir):
 
 
 def test_write_scanner(tempdir, dataset_reader):
-    if not dataset_reader.use_async:
-        pytest.skip(
-            ('ARROW-13338: Write dataset with scanner does not'
-             ' support synchronous scan'))
-
     table = pa.table([
         pa.array(range(20)), pa.array(np.random.randn(20)),
         pa.array(np.repeat(['a', 'b'], 10))
