@@ -736,6 +736,8 @@ class Target(Serializable):
         if email is None:
             email = repo.user_email
 
+        print(f'head:\t\t{head}\nemail:\t\t{email}\nbranch:\t\t{branch}\nremote:\t\t{remote}\nversion:\t\t{version}')
+
         return cls(head=head, email=email, branch=branch, remote=remote,
                    version=version)
 
