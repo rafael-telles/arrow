@@ -20,6 +20,7 @@ package org.apache.arrow.driver.jdbc.accessor.impl.calendar;
 import static org.apache.arrow.driver.jdbc.accessor.impl.calendar.ArrowFlightJdbcTimeStampVectorGetter.Getter;
 import static org.apache.arrow.driver.jdbc.accessor.impl.calendar.ArrowFlightJdbcTimeStampVectorGetter.Holder;
 import static org.apache.arrow.driver.jdbc.accessor.impl.calendar.ArrowFlightJdbcTimeStampVectorGetter.createGetter;
+import static org.apache.calcite.avatica.util.DateTimeUtils.unixTimestampToString;
 
 import java.sql.Date;
 import java.sql.Time;
@@ -129,6 +130,12 @@ public class ArrowFlightJdbcTimeStampVectorAccessor extends ArrowFlightJdbcAcces
     }
 
     return Timestamp.valueOf(localDateTime);
+  }
+
+  @Override
+  public String getString() {
+    long milliseconds = timeUnit.toMillis(holder.value);
+    return unixTimestampToString((int) milliseconds);
   }
 
   protected static TimeUnit getTimeUnitForVector(TimeStampVector vector) {

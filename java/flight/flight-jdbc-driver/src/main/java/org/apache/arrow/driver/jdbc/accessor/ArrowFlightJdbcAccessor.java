@@ -37,7 +37,6 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.util.Calendar;
 import java.util.Map;
-import java.util.TimeZone;
 import java.util.function.IntSupplier;
 
 /**
@@ -52,7 +51,6 @@ public abstract class ArrowFlightJdbcAccessor implements Accessor {
 
   protected ArrowFlightJdbcAccessor(final IntSupplier currentRowSupplier,
                                     ArrowFlightJdbcAccessorFactory.WasNullConsumer wasNullConsumer) {
-    TimeZone.setDefault(TimeZone.getTimeZone("UTC")); // set default TZ to UTC to avoid zone offset in Date/Time objects
     this.currentRowSupplier = currentRowSupplier;
     this.wasNullConsumer = wasNullConsumer;
   }
