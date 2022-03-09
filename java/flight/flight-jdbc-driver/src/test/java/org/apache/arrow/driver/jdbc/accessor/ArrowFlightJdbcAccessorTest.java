@@ -52,7 +52,7 @@ public class ArrowFlightJdbcAccessorTest {
   MockedArrowFlightJdbcAccessor accessor;
 
   @Test
-  public void testShouldGetObjectWithByteClassReturnGetByte() {
+  public void testShouldGetObjectWithByteClassReturnGetByte() throws SQLException {
     byte expected = Byte.MAX_VALUE;
     when(accessor.getByte()).thenReturn(expected);
 
@@ -63,7 +63,7 @@ public class ArrowFlightJdbcAccessorTest {
   }
 
   @Test
-  public void testShouldGetObjectWithShortClassReturnGetShort() {
+  public void testShouldGetObjectWithShortClassReturnGetShort() throws SQLException {
     short expected = Short.MAX_VALUE;
     when(accessor.getShort()).thenReturn(expected);
 
@@ -74,7 +74,7 @@ public class ArrowFlightJdbcAccessorTest {
   }
 
   @Test
-  public void testShouldGetObjectWithIntegerClassReturnGetInt() {
+  public void testShouldGetObjectWithIntegerClassReturnGetInt() throws SQLException {
     int expected = Integer.MAX_VALUE;
     when(accessor.getInt()).thenReturn(expected);
 
@@ -85,7 +85,7 @@ public class ArrowFlightJdbcAccessorTest {
   }
 
   @Test
-  public void testShouldGetObjectWithLongClassReturnGetLong() {
+  public void testShouldGetObjectWithLongClassReturnGetLong() throws SQLException {
     long expected = Long.MAX_VALUE;
     when(accessor.getLong()).thenReturn(expected);
 
@@ -96,7 +96,7 @@ public class ArrowFlightJdbcAccessorTest {
   }
 
   @Test
-  public void testShouldGetObjectWithFloatClassReturnGetFloat() {
+  public void testShouldGetObjectWithFloatClassReturnGetFloat() throws SQLException {
     float expected = Float.MAX_VALUE;
     when(accessor.getFloat()).thenReturn(expected);
 
@@ -107,7 +107,7 @@ public class ArrowFlightJdbcAccessorTest {
   }
 
   @Test
-  public void testShouldGetObjectWithDoubleClassReturnGetDouble() {
+  public void testShouldGetObjectWithDoubleClassReturnGetDouble() throws SQLException {
     double expected = Double.MAX_VALUE;
     when(accessor.getDouble()).thenReturn(expected);
 
@@ -128,7 +128,7 @@ public class ArrowFlightJdbcAccessorTest {
   }
 
   @Test
-  public void testShouldGetObjectWithBigDecimalClassReturnGetBigDecimal() {
+  public void testShouldGetObjectWithBigDecimalClassReturnGetBigDecimal() throws SQLException {
     BigDecimal expected = BigDecimal.TEN;
     when(accessor.getBigDecimal()).thenReturn(expected);
 
@@ -139,7 +139,7 @@ public class ArrowFlightJdbcAccessorTest {
   }
 
   @Test
-  public void testShouldGetObjectWithStringClassReturnGetString() {
+  public void testShouldGetObjectWithStringClassReturnGetString() throws SQLException {
     String expected = "STRING_VALUE";
     when(accessor.getString()).thenReturn(expected);
 
@@ -150,7 +150,7 @@ public class ArrowFlightJdbcAccessorTest {
   }
 
   @Test
-  public void testShouldGetObjectWithByteArrayClassReturnGetBytes() {
+  public void testShouldGetObjectWithByteArrayClassReturnGetBytes() throws SQLException {
     byte[] expected = "STRING_VALUE".getBytes(StandardCharsets.UTF_8);
     when(accessor.getBytes()).thenReturn(expected);
 
@@ -161,7 +161,7 @@ public class ArrowFlightJdbcAccessorTest {
   }
 
   @Test
-  public void testShouldGetObjectWithObjectClassReturnGetObject() {
+  public void testShouldGetObjectWithObjectClassReturnGetObject() throws SQLException {
     Object expected = new Object();
     when(accessor.getObject()).thenReturn(expected);
 
@@ -172,7 +172,7 @@ public class ArrowFlightJdbcAccessorTest {
   }
 
   @Test
-  public void testShouldGetObjectWithAccessorsObjectClassReturnGetObject() {
+  public void testShouldGetObjectWithAccessorsObjectClassReturnGetObject() throws SQLException {
     Class<Long> objectClass = Long.class;
 
     when(accessor.getObject(objectClass)).thenCallRealMethod();
@@ -224,13 +224,13 @@ public class ArrowFlightJdbcAccessorTest {
   }
 
   @Test(expected = UnsupportedOperationException.class)
-  public void testShouldFailToGetBigDecimal() {
+  public void testShouldFailToGetBigDecimal() throws SQLException {
     when(accessor.getBigDecimal()).thenCallRealMethod();
     accessor.getBigDecimal();
   }
 
   @Test(expected = UnsupportedOperationException.class)
-  public void testShouldFailToGetBytes() {
+  public void testShouldFailToGetBytes() throws SQLException {
     when(accessor.getBytes()).thenCallRealMethod();
     accessor.getBytes();
   }

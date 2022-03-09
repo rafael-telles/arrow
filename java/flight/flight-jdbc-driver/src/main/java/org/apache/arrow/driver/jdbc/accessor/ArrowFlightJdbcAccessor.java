@@ -113,7 +113,7 @@ public abstract class ArrowFlightJdbcAccessor implements Accessor {
   }
 
   @Override
-  public BigDecimal getBigDecimal() {
+  public BigDecimal getBigDecimal() throws SQLException {
     throw getOperationNotSupported(this.getClass());
   }
 
@@ -123,7 +123,7 @@ public abstract class ArrowFlightJdbcAccessor implements Accessor {
   }
 
   @Override
-  public byte[] getBytes() {
+  public byte[] getBytes() throws SQLException {
     throw getOperationNotSupported(this.getClass());
   }
 

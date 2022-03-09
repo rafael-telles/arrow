@@ -159,13 +159,13 @@ public class AbstractArrowFlightJdbcUnionVectorAccessorTest {
   }
 
   @Test
-  public void testGetBytesUsesSpecificAccessor() {
+  public void testGetBytesUsesSpecificAccessor() throws SQLException {
     accessor.getBytes();
     verify(innerAccessor).getBytes();
   }
 
   @Test
-  public void testGetBigDecimalUsesSpecificAccessor() {
+  public void testGetBigDecimalUsesSpecificAccessor() throws SQLException {
     accessor.getBigDecimal();
     verify(innerAccessor).getBigDecimal();
   }

@@ -313,8 +313,7 @@ public class ArrowFlightJdbcVarCharVectorAccessorTest {
   public void testShouldGetBigDecimalThrowsExceptionForNonNumericValue() throws Exception {
     Text value = new Text("Invalid value for BigDecimal.");
     when(getter.get(0)).thenReturn(value);
-
-    thrown.expect(IllegalArgumentException.class);
+    thrown.expect(SQLException.class);
     accessor.getBigDecimal();
   }
 

@@ -143,7 +143,7 @@ public abstract class AbstractArrowFlightJdbcUnionVectorAccessor extends ArrowFl
   }
 
   @Override
-  public BigDecimal getBigDecimal() {
+  public BigDecimal getBigDecimal() throws SQLException {
     return getAccessor().getBigDecimal();
   }
 
@@ -153,7 +153,7 @@ public abstract class AbstractArrowFlightJdbcUnionVectorAccessor extends ArrowFl
   }
 
   @Override
-  public byte[] getBytes() {
+  public byte[] getBytes() throws SQLException {
     return getAccessor().getBytes();
   }
 
