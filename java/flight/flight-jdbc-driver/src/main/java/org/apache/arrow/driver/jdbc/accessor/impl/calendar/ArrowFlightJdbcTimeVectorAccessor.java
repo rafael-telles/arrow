@@ -147,6 +147,9 @@ public class ArrowFlightJdbcTimeVectorAccessor extends ArrowFlightJdbcAccessor {
   @Override
   public String getString() {
     fillHolder();
+    if (wasNull) {
+      return null;
+    }
     long milliseconds = timeUnit.toMillis(holder.value);
     return unixTimeToString((int) (milliseconds % MILLIS_PER_DAY));
   }
