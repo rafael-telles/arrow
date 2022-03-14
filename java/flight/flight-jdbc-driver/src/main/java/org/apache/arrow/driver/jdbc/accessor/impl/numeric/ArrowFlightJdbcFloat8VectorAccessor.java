@@ -20,6 +20,7 @@ package org.apache.arrow.driver.jdbc.accessor.impl.numeric;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.ByteBuffer;
+import java.sql.SQLException;
 import java.util.function.IntSupplier;
 
 import org.apache.arrow.driver.jdbc.accessor.ArrowFlightJdbcAccessor;
@@ -115,19 +116,21 @@ public class ArrowFlightJdbcFloat8VectorAccessor extends ArrowFlightJdbcAccessor
   }
 
   @Override
-  public BigDecimal getBigDecimal() {
+  public BigDecimal getBigDecimal() throws SQLException {
     final double value = this.getDouble();
     if (Double.isInfinite(value) || Double.isNaN(value)) {
-      throw new UnsupportedOperationException("BigDecimal doesn't support Infinite/NaN.");
+      throw new SQLException("BigDecimal doesn't support Infinite/NaN.");
     }
     return this.wasNull ? null : BigDecimal.valueOf(value);
   }
 
   @Override
-  public BigDecimal getBigDecimal(int scale) {
-    final BigDecimal value =
-        BigDecimal.valueOf(this.getDouble()).setScale(scale, RoundingMode.HALF_UP);
-    return this.wasNull ? null : value;
+  public BigDecimal getBigDecimal(int scale) throws SQLException {
+    final double value = this.getDouble();
+    if (Double.isInfinite(value) || Double.isNaN(value)) {
+      throw new SQLException("BigDecimal doesn't support Infinite/NaN.");
+    }
+    return this.wasNull ? null : BigDecimal.valueOf(value).setScale(scale, RoundingMode.HALF_UP);
   }
 
   @Override
