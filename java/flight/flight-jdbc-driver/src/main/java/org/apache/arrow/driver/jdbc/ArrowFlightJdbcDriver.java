@@ -93,14 +93,7 @@ public class ArrowFlightJdbcDriver extends UnregisteredDriver {
 
   @Override
   protected DriverVersion createDriverVersion() {
-
-    CreateVersionIfNull:
-    {
-
-      if (version != null) {
-        break CreateVersionIfNull;
-      }
-
+    if (version != null) {
       try (Reader reader = new BufferedReader(new InputStreamReader(
           this.getClass().getResourceAsStream("/properties/flight.properties"),
           StandardCharsets.UTF_8))) {
@@ -138,7 +131,7 @@ public class ArrowFlightJdbcDriver extends UnregisteredDriver {
 
   @Override
   public Meta createMeta(final AvaticaConnection connection) {
-    return new ArrowFlightMetaImpl((ArrowFlightConnection) connection);
+    return new ArrowFlightMetaImpl(connection);
   }
 
   @Override
@@ -147,7 +140,7 @@ public class ArrowFlightJdbcDriver extends UnregisteredDriver {
   }
 
   @Override
-  public boolean acceptsURL(final String url) throws SQLException {
+  public boolean acceptsURL(final String url) {
     return Preconditions.checkNotNull(url).startsWith(CONNECT_STRING_PREFIX);
   }
 
@@ -218,7 +211,7 @@ public class ArrowFlightJdbcDriver extends UnregisteredDriver {
      */
 
     if (!url.startsWith("jdbc:")) {
-      throw new SQLException("Malformed/invalid URL!");
+      throw new SQLException("Must start with 'jdbc:'");
     }
 
     // It's necessary to use a string without "jdbc:" at the beginning to be parsed as a valid URL.
@@ -233,7 +226,7 @@ public class ArrowFlightJdbcDriver extends UnregisteredDriver {
     }
 
     if (!Objects.equals(uri.getScheme(), "arrow-flight")) {
-      throw new SQLException("Malformed/invalid URL!");
+      throw new SQLException("Scheme must be 'arrow-flight'");
     }
 
 

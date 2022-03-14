@@ -31,6 +31,7 @@ import org.apache.arrow.util.Preconditions;
 import org.apache.calcite.avatica.AvaticaConnection;
 import org.apache.calcite.avatica.AvaticaFactory;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.netty.util.concurrent.DefaultThreadFactory;
 
 /**
@@ -104,7 +105,11 @@ public final class ArrowFlightConnection extends AvaticaConnection {
           .withCallOptions(config.toCallOption())
           .build();
     } catch (final SQLException e) {
-      allocator.close();
+      try {
+        allocator.close();
+      } catch (final Exception allocatorCloseEx) {
+        e.addSuppressed(allocatorCloseEx);
+      }
       throw e;
     }
   }
@@ -147,6 +152,7 @@ public final class ArrowFlightConnection extends AvaticaConnection {
         executorService;
   }
 
+  @SuppressFBWarnings(value = "EI_EXPOSE_REP", justification = "We shouldn't make copies of Properties")
   @Override
   public Properties getClientInfo() {
     return info;

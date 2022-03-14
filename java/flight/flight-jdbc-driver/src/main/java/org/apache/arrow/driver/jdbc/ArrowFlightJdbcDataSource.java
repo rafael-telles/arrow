@@ -30,6 +30,8 @@ import javax.sql.DataSource;
 import org.apache.arrow.driver.jdbc.utils.ArrowFlightConnectionConfigImpl;
 import org.apache.arrow.util.Preconditions;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+
 /**
  * {@link DataSource} implementation for Arrow Flight JDBC Driver.
  */
@@ -103,17 +105,19 @@ public class ArrowFlightJdbcDataSource implements DataSource {
   }
 
   @Override
-  public boolean isWrapperFor(Class<?> aClass) throws SQLException {
+  public boolean isWrapperFor(Class<?> aClass) {
     return false;
   }
 
+  @SuppressFBWarnings(value = "EI_EXPOSE_REP", justification = "We shouldn't make copies of PrintWriter")
   @Override
-  public PrintWriter getLogWriter() throws SQLException {
+  public PrintWriter getLogWriter() {
     return this.logWriter;
   }
 
+  @SuppressFBWarnings(value = "EI_EXPOSE_REP2", justification = "We shouldn't make copies of PrintWriter")
   @Override
-  public void setLogWriter(PrintWriter logWriter) throws SQLException {
+  public void setLogWriter(PrintWriter logWriter) {
     this.logWriter = logWriter;
   }
 
@@ -123,12 +127,12 @@ public class ArrowFlightJdbcDataSource implements DataSource {
   }
 
   @Override
-  public int getLoginTimeout() throws SQLException {
+  public int getLoginTimeout() {
     return 0;
   }
 
   @Override
-  public Logger getParentLogger() throws SQLFeatureNotSupportedException {
+  public Logger getParentLogger() {
     return Logger.getLogger("ArrowFlightJdbc");
   }
 }

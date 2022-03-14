@@ -26,6 +26,8 @@ import org.apache.arrow.driver.jdbc.accessor.ArrowFlightJdbcAccessorFactory;
 import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.holders.NullableBitHolder;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+
 /**
  * Accessor for the arrow {@link BitVector}.
  */
@@ -42,6 +44,7 @@ public class ArrowFlightJdbcBitVectorAccessor extends ArrowFlightJdbcAccessor {
    * @param currentRowSupplier a supplier to check which row is being accessed.
    * @param setCursorWasNull   the consumer to set if value was null.
    */
+  @SuppressFBWarnings(value = "EI_EXPOSE_REP2", justification = "We shouldn't make copies of vectors")
   public ArrowFlightJdbcBitVectorAccessor(BitVector vector, IntSupplier currentRowSupplier,
                                           ArrowFlightJdbcAccessorFactory.WasNullConsumer setCursorWasNull) {
     super(currentRowSupplier, setCursorWasNull);
@@ -51,7 +54,7 @@ public class ArrowFlightJdbcBitVectorAccessor extends ArrowFlightJdbcAccessor {
 
   @Override
   public Class<?> getObjectClass() {
-    return Long.class;
+    return Boolean.class;
   }
 
   @Override

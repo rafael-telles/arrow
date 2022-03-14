@@ -32,6 +32,8 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+
 /**
  * Converts Arrow's {@link VectorSchemaRoot} format to one JDBC would expect.
  */
@@ -45,19 +47,12 @@ public interface VectorSchemaRootTransformer {
    */
   class Builder {
 
-    /**
-     * Functional interface used to a task to transform a VectorSchemaRoot into a new VectorSchemaRoot.
-     */
-    @FunctionalInterface
-    interface Task {
-      void run(VectorSchemaRoot originalRoot, VectorSchemaRoot transformedRoot);
-    }
-
     private final Schema schema;
     private final BufferAllocator bufferAllocator;
     private final List<Field> newFields = new ArrayList<>();
     private final Collection<Task> tasks = new ArrayList<>();
 
+    @SuppressFBWarnings(value = "EI_EXPOSE_REP2", justification = "We shouldn't make copies of BufferAllocator")
     public Builder(final Schema schema, final BufferAllocator bufferAllocator) {
       this.schema = schema;
       this.bufferAllocator = bufferAllocator;
@@ -148,6 +143,14 @@ public interface VectorSchemaRootTransformer {
         originalRoot.clear();
         return transformedRoot;
       };
+    }
+
+    /**
+     * Functional interface used to a task to transform a VectorSchemaRoot into a new VectorSchemaRoot.
+     */
+    @FunctionalInterface
+    interface Task {
+      void run(VectorSchemaRoot originalRoot, VectorSchemaRoot transformedRoot);
     }
   }
 }
