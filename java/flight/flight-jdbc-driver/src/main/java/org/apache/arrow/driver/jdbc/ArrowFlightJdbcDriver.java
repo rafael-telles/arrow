@@ -19,6 +19,7 @@ package org.apache.arrow.driver.jdbc;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.net.URI;
@@ -47,6 +48,7 @@ import org.apache.calcite.avatica.org.apache.http.client.utils.URLEncodedUtils;
 public class ArrowFlightJdbcDriver extends UnregisteredDriver {
 
   private static final String CONNECT_STRING_PREFIX = "jdbc:arrow-flight://";
+  private static final String CONNECTION_STRING_EXPECTED = "jdbc:arrow-flight://<host>:32010[?param1=value&...]";
   private static DriverVersion version;
 
   static {
@@ -94,33 +96,38 @@ public class ArrowFlightJdbcDriver extends UnregisteredDriver {
   @Override
   protected DriverVersion createDriverVersion() {
     if (version == null) {
-      try (Reader reader = new BufferedReader(new InputStreamReader(
-          this.getClass().getResourceAsStream("/properties/flight.properties"),
-          StandardCharsets.UTF_8))) {
+      final InputStream flightProperties = this.getClass().getResourceAsStream("/properties/flight.properties");
+      if (flightProperties == null) {
+        throw new RuntimeException("Flight Properties not found. Ensure the JAR was built properly.");
+      }
+      try (final Reader reader = new BufferedReader(new InputStreamReader(flightProperties, StandardCharsets.UTF_8))) {
         final Properties properties = new Properties();
         properties.load(reader);
 
-        final String parentName = properties
-            .getProperty("org.apache.arrow.flight.name");
-        final String parentVersion = properties
-            .getProperty("org.apache.arrow.flight.version");
+        final String parentName = properties.getProperty("org.apache.arrow.flight.name");
+        final String parentVersion = properties.getProperty("org.apache.arrow.flight.version");
         final String[] pVersion = parentVersion.split("\\.");
 
         final int parentMajorVersion = Integer.parseInt(pVersion[0]);
         final int parentMinorVersion = Integer.parseInt(pVersion[1]);
 
-        final String childName = properties
-            .getProperty("org.apache.arrow.flight.jdbc-driver.name");
-        final String childVersion = properties
-            .getProperty("org.apache.arrow.flight.jdbc-driver.version");
+        final String childName = properties.getProperty("org.apache.arrow.flight.jdbc-driver.name");
+        final String childVersion = properties.getProperty("org.apache.arrow.flight.jdbc-driver.version");
         final String[] cVersion = childVersion.split("\\.");
 
         final int childMajorVersion = Integer.parseInt(cVersion[0]);
         final int childMinorVersion = Integer.parseInt(cVersion[1]);
 
-        version = new DriverVersion(childName, childVersion, parentName,
-            parentVersion, true, childMajorVersion, childMinorVersion,
-            parentMajorVersion, parentMinorVersion);
+        version = new DriverVersion(
+            childName,
+            childVersion,
+            parentName,
+            parentVersion,
+            true,
+            childMajorVersion,
+            childMinorVersion,
+            parentMajorVersion,
+            parentMinorVersion);
       } catch (final IOException e) {
         throw new RuntimeException("Failed to load driver version.", e);
       }
@@ -211,7 +218,8 @@ public class ArrowFlightJdbcDriver extends UnregisteredDriver {
      */
 
     if (!url.startsWith("jdbc:")) {
-      throw new SQLException("Connection string must start with 'jdbc:'");
+      throw new SQLException("Connection string must start with 'jdbc:'. Expected format: "
+          + CONNECTION_STRING_EXPECTED);
     }
 
     // It's necessary to use a string without "jdbc:" at the beginning to be parsed as a valid URL.
@@ -226,7 +234,8 @@ public class ArrowFlightJdbcDriver extends UnregisteredDriver {
     }
 
     if (!Objects.equals(uri.getScheme(), "arrow-flight")) {
-      throw new SQLException("URL Scheme must be 'arrow-flight'");
+      throw new SQLException("URL Scheme must be 'arrow-flight'. Expected format: "
+          + CONNECTION_STRING_EXPECTED);
     }
 
 
@@ -237,8 +246,7 @@ public class ArrowFlightJdbcDriver extends UnregisteredDriver {
 
     final String extraParams = uri.getRawQuery(); // optional params
 
-    final List<NameValuePair> keyValuePairs =
-        URLEncodedUtils.parse(extraParams, StandardCharsets.UTF_8);
+    final List<NameValuePair> keyValuePairs = URLEncodedUtils.parse(extraParams, StandardCharsets.UTF_8);
     keyValuePairs.forEach(p -> resultMap.put(p.getName(), p.getValue()));
 
     return resultMap;
