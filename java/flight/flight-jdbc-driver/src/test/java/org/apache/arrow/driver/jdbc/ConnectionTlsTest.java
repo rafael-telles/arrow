@@ -84,6 +84,7 @@ public class ConnectionTlsTest {
 
   @After
   public void tearDown() throws Exception {
+    allocator.getChildAllocators().forEach(BufferAllocator::close);
     AutoCloseables.close(allocator);
   }
 

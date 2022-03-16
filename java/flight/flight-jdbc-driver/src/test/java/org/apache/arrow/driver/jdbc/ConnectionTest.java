@@ -70,8 +70,7 @@ public class ConnectionTest {
 
   @After
   public void tearDown() throws Exception {
-    Collection<BufferAllocator> childAllocators = allocator.getChildAllocators();
-    AutoCloseables.close(childAllocators.toArray(new AutoCloseable[0]));
+    allocator.getChildAllocators().forEach(BufferAllocator::close);
     AutoCloseables.close(allocator);
   }
 
