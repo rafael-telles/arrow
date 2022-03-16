@@ -21,6 +21,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 
 import java.math.BigDecimal;
+import java.sql.SQLException;
 
 import org.apache.arrow.driver.jdbc.utils.AccessorTestUtils;
 import org.apache.arrow.driver.jdbc.utils.RootAllocatorTestRule;
@@ -204,8 +205,8 @@ public class ArrowFlightJdbcFloat4VectorAccessorTest {
   public void testShouldGetBigDecimalMethodFromFloat4Vector() throws Exception {
     accessorIterator.iterate(vector, (accessor, currentRow) -> {
       float value = accessor.getFloat();
-      if (Double.isInfinite(value)) {
-        exceptionCollector.expect(UnsupportedOperationException.class);
+      if (Float.isInfinite(value) || Float.isNaN(value)) {
+        exceptionCollector.expect(SQLException.class);
       }
       collector.checkThat(accessor.getBigDecimal(), is(BigDecimal.valueOf(value)));
     });

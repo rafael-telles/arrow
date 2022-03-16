@@ -21,6 +21,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 
 import java.math.BigDecimal;
+import java.sql.SQLException;
 
 import org.apache.arrow.driver.jdbc.utils.AccessorTestUtils;
 import org.apache.arrow.driver.jdbc.utils.RootAllocatorTestRule;
@@ -142,11 +143,10 @@ public class ArrowFlightJdbcFloat8VectorAccessorTest {
 
   @Test
   public void testShouldGetBigDecimalMethodFromFloat8Vector() throws Exception {
-    accessorIterator.iterate(vector, (accessor) -> {
+    accessorIterator.iterate(vector, (accessor, currentRow) -> {
       double value = accessor.getDouble();
-      if (Double.isInfinite(value)) {
-        // BigDecimal does not support Infinities
-        return;
+      if (Double.isInfinite(value) || Double.isNaN(value)) {
+        exceptionCollector.expect(SQLException.class);
       }
       collector.checkThat(accessor.getBigDecimal(), is(BigDecimal.valueOf(value)));
     });
