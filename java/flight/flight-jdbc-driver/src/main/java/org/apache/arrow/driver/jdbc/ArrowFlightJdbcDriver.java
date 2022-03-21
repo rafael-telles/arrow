@@ -83,7 +83,7 @@ public class ArrowFlightJdbcDriver extends UnregisteredDriver {
           url,
           properties,
           new RootAllocator(Long.MAX_VALUE));
-    } catch (AssertionError | FlightRuntimeException e) {
+    } catch (final FlightRuntimeException e) {
       throw new SQLException("Failed to connect.", e);
     }
   }

@@ -35,7 +35,8 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
-import org.apache.arrow.driver.jdbc.adhoc.CoreMockedSqlProducers;
+import org.apache.arrow.driver.jdbc.utils.CoreMockedSqlProducers;
+import org.apache.arrow.util.AutoCloseables;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
@@ -63,6 +64,7 @@ public class ResultSetTest {
   @AfterClass
   public static void tearDown() throws SQLException {
     connection.close();
+    AutoCloseables.closeNoChecked(SERVER_TEST_RULE);
   }
 
   private static void resultSetNextUntilDone(ResultSet resultSet) throws SQLException {
@@ -142,7 +144,7 @@ public class ResultSetTest {
   public void testShouldThrowExceptionUponAttemptingToExecuteAnInvalidSelectQuery()
       throws Exception {
     Statement statement = connection.createStatement();
-    ResultSet resultSet = statement.executeQuery("SELECT * FROM SHOULD-FAIL");
+    statement.executeQuery("SELECT * FROM SHOULD-FAIL");
     fail();
   }
 
@@ -310,7 +312,7 @@ public class ResultSetTest {
     try (final Statement statement = connection.createStatement()) {
       final Set<Exception> exceptions = synchronizedSet(new HashSet<>(1));
       final Thread thread = new Thread(() -> {
-        try (final ResultSet resultSet = statement.executeQuery(query)) {
+        try (final ResultSet ignored = statement.executeQuery(query)) {
           fail();
         } catch (final SQLException e) {
           exceptions.add(e);
