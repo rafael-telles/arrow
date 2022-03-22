@@ -17,6 +17,9 @@
 
 package org.apache.arrow.driver.jdbc.accessor.impl.text;
 
+import static java.nio.charset.StandardCharsets.US_ASCII;
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 import java.io.ByteArrayInputStream;
 import java.io.CharArrayReader;
 import java.io.InputStream;
@@ -101,7 +104,7 @@ public class ArrowFlightJdbcVarCharVectorAccessor extends ArrowFlightJdbcAccesso
 
   @Override
   public boolean getBoolean() throws SQLException {
-    String value = getString();
+    final String value = getString();
     if (value == null || value.equalsIgnoreCase("false") || value.equals("0")) {
       return false;
     } else if (value.equalsIgnoreCase("true") || value.equals("1")) {
@@ -185,8 +188,14 @@ public class ArrowFlightJdbcVarCharVectorAccessor extends ArrowFlightJdbcAccesso
 
   @Override
   public InputStream getAsciiStream() {
-    Text value = this.getText();
-    return value == null ? null : new ByteArrayInputStream(value.getBytes(), 0, value.getLength());
+    final String value = getString();
+    return value == null ? null : new ByteArrayInputStream(value.getBytes(US_ASCII), 0, value.length());
+  }
+
+  @Override
+  public InputStream getUnicodeStream() {
+    final String value = getString();
+    return value == null ? null : new ByteArrayInputStream(value.getBytes(UTF_8), 0, value.length());
   }
 
   @Override

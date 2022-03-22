@@ -639,15 +639,29 @@ public class ArrowFlightJdbcVarCharVectorAccessorTest {
   }
 
   @Test
-  public void testShouldGetAsciiStreamReturnValidInputStream() throws Exception {
+  public void testShouldGetUnicodeStreamReturnValidInputStream() throws Exception {
     Text value = new Text("Value for Test.");
     when(getter.get(0)).thenReturn(value);
 
-    try (InputStream result = accessor.getAsciiStream()) {
+    try (final InputStream result = accessor.getUnicodeStream()) {
       byte[] resultBytes = toByteArray(result);
 
-      collector.checkThat(new String(resultBytes, StandardCharsets.UTF_8),
+      collector.checkThat(new String(resultBytes, StandardCharsets.US_ASCII),
           equalTo(value.toString()));
+    }
+  }
+
+  @Test
+  public void testShouldGetAsciiStreamReturnValidInputStream() throws Exception {
+    String valueAscii = new String("Value for Test.".getBytes(StandardCharsets.UTF_8), StandardCharsets.US_ASCII);
+    Text valueText = new Text("Value for Test.");
+    when(getter.get(0)).thenReturn(valueText);
+
+    try (final InputStream result = accessor.getAsciiStream()) {
+      byte[] resultBytes = toByteArray(result);
+
+      collector.checkThat(new String(resultBytes, StandardCharsets.US_ASCII),
+          equalTo(valueAscii));
     }
   }
 

@@ -162,10 +162,30 @@ public class ArrowFlightJdbcBinaryVectorAccessorTest {
   }
 
   @Test
+  public void testShouldGetUnicodeStreamReturnCorrectInputStream() throws Exception {
+    accessorIterator.iterate(vector, (accessor, currentRow) -> {
+      InputStream inputStream = accessor.getUnicodeStream();
+      String actualString = IOUtils.toString(inputStream, StandardCharsets.UTF_8);
+      collector.checkThat(accessor.wasNull(), is(false));
+      collector.checkThat(actualString, is(accessor.getString()));
+    });
+  }
+
+  @Test
+  public void testShouldGetUnicodeStreamReturnNull() throws Exception {
+    vector.reset();
+    vector.setValueCount(5);
+
+    ArrowFlightJdbcBinaryVectorAccessor accessor = accessorSupplier.supply(vector, () -> 0);
+    collector.checkThat(accessor.getUnicodeStream(), CoreMatchers.equalTo(null));
+    collector.checkThat(accessor.wasNull(), is(true));
+  }
+
+  @Test
   public void testShouldGetAsciiStreamReturnCorrectInputStream() throws Exception {
     accessorIterator.iterate(vector, (accessor, currentRow) -> {
       InputStream inputStream = accessor.getAsciiStream();
-      String actualString = IOUtils.toString(inputStream, StandardCharsets.UTF_8);
+      String actualString = IOUtils.toString(inputStream, StandardCharsets.US_ASCII);
       collector.checkThat(accessor.wasNull(), is(false));
       collector.checkThat(actualString, is(accessor.getString()));
     });
