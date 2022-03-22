@@ -23,7 +23,6 @@ import static org.hamcrest.CoreMatchers.is;
 
 import java.io.InputStream;
 import java.io.Reader;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.function.Supplier;
