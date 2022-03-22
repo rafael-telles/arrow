@@ -17,6 +17,8 @@
 
 package org.apache.arrow.driver.jdbc.accessor.impl.text;
 
+import static java.nio.charset.StandardCharsets.US_ASCII;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.apache.commons.io.IOUtils.toByteArray;
 import static org.apache.commons.io.IOUtils.toCharArray;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -635,7 +637,7 @@ public class ArrowFlightJdbcVarCharVectorAccessorTest {
     final byte[] result = accessor.getBytes();
 
     collector.checkThat(result, instanceOf(byte[].class));
-    collector.checkThat(result, equalTo(value.toString().getBytes(StandardCharsets.UTF_8)));
+    collector.checkThat(result, equalTo(value.toString().getBytes(UTF_8)));
   }
 
   @Test
@@ -646,21 +648,21 @@ public class ArrowFlightJdbcVarCharVectorAccessorTest {
     try (final InputStream result = accessor.getUnicodeStream()) {
       byte[] resultBytes = toByteArray(result);
 
-      collector.checkThat(new String(resultBytes, StandardCharsets.US_ASCII),
+      collector.checkThat(new String(resultBytes, UTF_8),
           equalTo(value.toString()));
     }
   }
 
   @Test
   public void testShouldGetAsciiStreamReturnValidInputStream() throws Exception {
-    String valueAscii = new String("Value for Test.".getBytes(StandardCharsets.UTF_8), StandardCharsets.US_ASCII);
     Text valueText = new Text("Value for Test.");
+    String valueAscii = new String(valueText.getBytes(), US_ASCII);
     when(getter.get(0)).thenReturn(valueText);
 
     try (final InputStream result = accessor.getAsciiStream()) {
       byte[] resultBytes = toByteArray(result);
 
-      collector.checkThat(new String(resultBytes, StandardCharsets.US_ASCII),
+      collector.checkThat(new String(resultBytes, US_ASCII),
           equalTo(valueAscii));
     }
   }
