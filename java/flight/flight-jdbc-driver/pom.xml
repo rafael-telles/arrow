@@ -144,11 +144,6 @@
             <version>1.61</version>
         </dependency>
         <dependency>
-            <groupId>com.google.code.findbugs</groupId>
-            <artifactId>annotations</artifactId>
-            <version>3.0.1</version>
-        </dependency>
-        <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
             <version>4.13</version>
@@ -183,6 +178,7 @@
                 <groupId>com.github.spotbugs</groupId>
                 <artifactId>spotbugs-maven-plugin</artifactId>
                 <configuration>
+                    <excludeFilterFile>jdbc-spotbugs-exclude.xml</excludeFilterFile>
                     <xmlOutput>true</xmlOutput>
                     <xmlOutputDirectory>target/spotbugs</xmlOutputDirectory>
                 </configuration>
