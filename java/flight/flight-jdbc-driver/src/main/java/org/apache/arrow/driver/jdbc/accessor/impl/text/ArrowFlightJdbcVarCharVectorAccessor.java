@@ -104,7 +104,7 @@ public class ArrowFlightJdbcVarCharVectorAccessor extends ArrowFlightJdbcAccesso
 
   @Override
   public boolean getBoolean() throws SQLException {
-    final String value = getString();
+    String value = getString();
     if (value == null || value.equalsIgnoreCase("false") || value.equals("0")) {
       return false;
     } else if (value.equalsIgnoreCase("true") || value.equals("1")) {
