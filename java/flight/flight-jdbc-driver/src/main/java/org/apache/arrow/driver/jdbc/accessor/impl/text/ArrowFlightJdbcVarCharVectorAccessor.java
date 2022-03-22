@@ -18,7 +18,6 @@
 package org.apache.arrow.driver.jdbc.accessor.impl.text;
 
 import static java.nio.charset.StandardCharsets.US_ASCII;
-import static java.nio.charset.StandardCharsets.UTF_8;
 
 import java.io.ByteArrayInputStream;
 import java.io.CharArrayReader;
@@ -188,14 +187,22 @@ public class ArrowFlightJdbcVarCharVectorAccessor extends ArrowFlightJdbcAccesso
 
   @Override
   public InputStream getAsciiStream() {
-    final String value = getString();
-    return value == null ? null : new ByteArrayInputStream(value.getBytes(US_ASCII), 0, value.length());
+    final String textValue = getString();
+    if (textValue == null) {
+      return null;
+    }
+    // Text is always UTF-8, so we have to encode back to ASCII
+    return new ByteArrayInputStream(textValue.getBytes(US_ASCII));
   }
 
   @Override
   public InputStream getUnicodeStream() {
-    final String value = getString();
-    return value == null ? null : new ByteArrayInputStream(value.getBytes(UTF_8), 0, value.length());
+    final Text textValue = getText();
+    if (textValue == null) {
+      return null;
+    }
+    // Already in UTF-8
+    return new ByteArrayInputStream(textValue.getBytes(), 0, textValue.getLength());
   }
 
   @Override

@@ -45,6 +45,7 @@ import org.apache.arrow.vector.DateMilliVector;
 import org.apache.arrow.vector.TimeMilliVector;
 import org.apache.arrow.vector.TimeStampVector;
 import org.apache.arrow.vector.util.Text;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
@@ -655,14 +656,13 @@ public class ArrowFlightJdbcVarCharVectorAccessorTest {
   @Test
   public void testShouldGetAsciiStreamReturnValidInputStream() throws Exception {
     Text valueText = new Text("Value for Test.");
-    String valueAscii = new String(valueText.getBytes(), US_ASCII);
+    byte[] valueAscii = valueText.toString().getBytes(US_ASCII);
     when(getter.get(0)).thenReturn(valueText);
 
     try (final InputStream result = accessor.getAsciiStream()) {
       byte[] resultBytes = toByteArray(result);
 
-      collector.checkThat(new String(resultBytes, US_ASCII),
-          equalTo(valueAscii));
+      Assert.assertArrayEquals(valueAscii, resultBytes);
     }
   }
 

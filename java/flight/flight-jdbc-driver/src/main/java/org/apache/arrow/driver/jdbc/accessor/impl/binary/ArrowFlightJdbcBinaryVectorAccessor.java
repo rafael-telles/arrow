@@ -18,17 +18,10 @@
 package org.apache.arrow.driver.jdbc.accessor.impl.binary;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.CharArrayReader;
-import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
 import java.io.Reader;
-import java.io.Writer;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.sql.SQLException;
 import java.util.function.IntSupplier;
 
 import org.apache.arrow.driver.jdbc.accessor.ArrowFlightJdbcAccessor;
@@ -103,31 +96,23 @@ public class ArrowFlightJdbcBinaryVectorAccessor extends ArrowFlightJdbcAccessor
   }
 
   @Override
-  public InputStream getAsciiStream() throws SQLException {
+  public InputStream getAsciiStream() {
     byte[] bytes = getBytes();
     if (bytes == null) {
       return null;
     }
 
-    try {
-      return new ByteArrayInputStream(convertByteArrayEncoding(bytes, StandardCharsets.US_ASCII));
-    } catch (final IOException e) {
-      throw new SQLException("Failed to create InputStream", e);
-    }
+    return new ByteArrayInputStream(bytes);
   }
 
   @Override
-  public InputStream getUnicodeStream() throws SQLException {
+  public InputStream getUnicodeStream() {
     byte[] bytes = getBytes();
     if (bytes == null) {
       return null;
     }
 
-    try {
-      return new ByteArrayInputStream(convertByteArrayEncoding(bytes, StandardCharsets.UTF_8));
-    } catch (final IOException e) {
-      throw new SQLException("Failed to create InputStream", e);
-    }
+    return new ByteArrayInputStream(bytes);
   }
 
   @Override
@@ -148,21 +133,5 @@ public class ArrowFlightJdbcBinaryVectorAccessor extends ArrowFlightJdbcAccessor
     }
 
     return new CharArrayReader(string.toCharArray());
-  }
-
-  private byte[] convertByteArrayEncoding(final byte[] originalArray, final Charset outputEncoding) throws IOException {
-    final ByteArrayInputStream original = new ByteArrayInputStream(originalArray);
-    final InputStreamReader contentReader = new InputStreamReader(original, StandardCharsets.UTF_8);
-
-    int readCount;
-    char[] buffer = new char[4096];
-    try (ByteArrayOutputStream converted = new ByteArrayOutputStream()) {
-      try (Writer writer = new OutputStreamWriter(converted, outputEncoding)) {
-        while ((readCount = contentReader.read(buffer, 0, buffer.length)) != -1) {
-          writer.write(buffer, 0, readCount);
-        }
-      }
-      return converted.toByteArray();
-    }
   }
 }
