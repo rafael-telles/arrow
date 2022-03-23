@@ -20,14 +20,17 @@ package org.apache.arrow.driver.jdbc.client;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import org.apache.arrow.driver.jdbc.client.utils.ClientAuthenticationUtils;
+import org.apache.arrow.driver.jdbc.client.utils.KeyedFlightSqlClientObjectPool;
+import org.apache.arrow.driver.jdbc.client.utils.KeyedFlightSqlClientObjectPoolFactory;
 import org.apache.arrow.flight.CallOption;
 import org.apache.arrow.flight.FlightClient;
 import org.apache.arrow.flight.FlightClientMiddleware;
@@ -49,18 +52,24 @@ import org.apache.arrow.util.AutoCloseables;
 import org.apache.arrow.util.Preconditions;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.calcite.avatica.Meta.StatementType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A {@link FlightSqlClient} handler.
  */
 public final class ArrowFlightSqlClientHandler implements AutoCloseable {
 
+  private static final Logger logger = LoggerFactory.getLogger(ArrowFlightSqlClientHandler.class);
   private final FlightSqlClient sqlClient;
   private final Set<CallOption> options = new HashSet<>();
+  private final KeyedFlightSqlClientObjectPool flightSqlClientPool;
 
   ArrowFlightSqlClientHandler(final FlightSqlClient sqlClient,
-                              final Collection<CallOption> options) {
+                              BufferAllocator allocator, final Collection<CallOption> options) {
     this.options.addAll(options);
+    this.flightSqlClientPool = new KeyedFlightSqlClientObjectPool(
+        new KeyedFlightSqlClientObjectPoolFactory(allocator));
     this.sqlClient = Preconditions.checkNotNull(sqlClient);
   }
 
@@ -68,12 +77,14 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
    * Creates a new {@link ArrowFlightSqlClientHandler} from the provided {@code client} and {@code options}.
    *
    * @param client  the {@link FlightClient} to manage under a {@link FlightSqlClient} wrapper.
+   * @param allocator the {@link BufferAllocator} used to create the client.
    * @param options the {@link CallOption}s to persist in between subsequent client calls.
    * @return a new {@link ArrowFlightSqlClientHandler}.
    */
   public static ArrowFlightSqlClientHandler createNewHandler(final FlightClient client,
+                                                             final BufferAllocator allocator,
                                                              final Collection<CallOption> options) {
-    return new ArrowFlightSqlClientHandler(new FlightSqlClient(client), options);
+    return new ArrowFlightSqlClientHandler(new FlightSqlClient(client), allocator, options);
   }
 
   /**
@@ -92,11 +103,36 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
    * @param flightInfo The {@link FlightInfo} instance from which to fetch results.
    * @return a {@code FlightStream} of results.
    */
-  public List<FlightStream> getStreams(final FlightInfo flightInfo) {
-    return flightInfo.getEndpoints().stream()
-        .map(FlightEndpoint::getTicket)
-        .map(ticket -> sqlClient.getStream(ticket, getOptions()))
-        .collect(Collectors.toList());
+  public List<FlightStream> getStreams(final FlightInfo flightInfo) throws SQLException {
+    final List<FlightStream> allStreams = new ArrayList<>();
+
+    for (final FlightEndpoint endpoint : flightInfo.getEndpoints()) {
+      List<Location> locations = endpoint.getLocations();
+      if (locations.isEmpty()) {
+        allStreams.add(sqlClient.getStream(endpoint.getTicket(), getOptions()));
+        continue;
+      }
+      final Location location = locations.get(0); // purposefully discard other locations
+
+      logger.info(String.format("Getting a client for location %s.", location));
+      FlightSqlClient flightSqlClient;
+      try {
+        flightSqlClient = flightSqlClientPool.borrowObject(location);
+      } catch (final NoSuchElementException e) {
+        try {
+          flightSqlClientPool.addObject(location);
+          flightSqlClient = flightSqlClientPool.borrowObject(location);
+        } catch (final Exception addObjectEx) {
+          throw new SQLException("Failed to create and get a new FlightSqlClient in the ObjectPool.", addObjectEx);
+        }
+      } catch (final Exception borrowObjectEx) {
+        throw new SQLException("Failed to borrow a FlightSqlClient from the ObjectPool", borrowObjectEx);
+      }
+
+      allStreams.add(flightSqlClient.getStream(endpoint.getTicket(), getOptions()));
+      flightSqlClientPool.returnObject(location, flightSqlClient);
+    }
+    return allStreams;
   }
 
   /**
@@ -114,6 +150,7 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
   public void close() throws SQLException {
     try {
       AutoCloseables.close(sqlClient);
+      flightSqlClientPool.close();
     } catch (final Exception e) {
       throw new SQLException("Failed to clean up client resources.", e);
     }
@@ -529,7 +566,7 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
               ClientAuthenticationUtils.getAuthenticate(
                   client, new CredentialCallOption(new BearerCredentialWriter(token))));
         }
-        return ArrowFlightSqlClientHandler.createNewHandler(client, options);
+        return ArrowFlightSqlClientHandler.createNewHandler(client, allocator, options);
 
       } catch (final IllegalArgumentException | GeneralSecurityException | IOException | FlightRuntimeException e) {
         final SQLException originalException = new SQLException(e);
