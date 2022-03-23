@@ -239,16 +239,13 @@ public class ConnectionTlsTest {
   public void testGetNonAuthenticatedEncryptedConnection() throws Exception {
     final Properties properties = new Properties();
 
-    properties.put(ArrowFlightConnectionProperty.HOST.camelName(),
-        FLIGHT_SERVER_TEST_RULE.getHost());
-    properties.put(ArrowFlightConnectionProperty.PORT.camelName(),
-        FLIGHT_SERVER_TEST_RULE.getPort());
+    properties.put(ArrowFlightConnectionProperty.HOST.camelName(), FLIGHT_SERVER_TEST_RULE.getHost());
+    properties.put(ArrowFlightConnectionProperty.PORT.camelName(), FLIGHT_SERVER_TEST_RULE.getPort());
     properties.put(ArrowFlightConnectionProperty.USE_TLS.camelName(), true);
     properties.put(BuiltInConnectionProperty.KEYSTORE.camelName(), keyStorePath);
     properties.put(BuiltInConnectionProperty.KEYSTORE_PASSWORD.camelName(), keyStorePass);
 
-    final ArrowFlightJdbcDataSource dataSource =
-        ArrowFlightJdbcDataSource.createNewDataSource(properties);
+    final ArrowFlightJdbcDataSource dataSource = ArrowFlightJdbcDataSource.createNewDataSource(properties);
     try (final Connection connection = dataSource.getConnection()) {
       assert connection.isValid(300);
     }
@@ -293,13 +290,12 @@ public class ConnectionTlsTest {
 
     Properties properties = new Properties();
 
-    properties.setProperty(ArrowFlightConnectionProperty.USER.camelName(),
-        userTest);
-    properties.setProperty(ArrowFlightConnectionProperty.PASSWORD.camelName(),
-        passTest);
+    properties.setProperty(ArrowFlightConnectionProperty.USER.camelName(), userTest);
+    properties.setProperty(ArrowFlightConnectionProperty.PASSWORD.camelName(), passTest);
     properties.setProperty(BuiltInConnectionProperty.KEYSTORE.camelName(), keyStorePath);
     properties.setProperty(BuiltInConnectionProperty.KEYSTORE_PASSWORD.camelName(), keyStorePass);
     properties.setProperty(ArrowFlightConnectionProperty.USE_TLS.camelName(), "true");
+
     Connection connection = DriverManager.getConnection(
         String.format(
             "jdbc:arrow-flight://localhost:%s",
@@ -323,10 +319,8 @@ public class ConnectionTlsTest {
 
     Properties properties = new Properties();
 
-    properties.put(ArrowFlightConnectionProperty.USER.camelName(),
-        userTest);
-    properties.put(ArrowFlightConnectionProperty.PASSWORD.camelName(),
-        passTest);
+    properties.put(ArrowFlightConnectionProperty.USER.camelName(), userTest);
+    properties.put(ArrowFlightConnectionProperty.PASSWORD.camelName(), passTest);
     properties.put(ArrowFlightConnectionProperty.USE_TLS.camelName(), true);
     properties.put(BuiltInConnectionProperty.KEYSTORE.camelName(), keyStorePath);
     properties.put(BuiltInConnectionProperty.KEYSTORE_PASSWORD.camelName(), keyStorePass);
@@ -380,10 +374,8 @@ public class ConnectionTlsTest {
 
     Properties properties = new Properties();
 
-    properties.setProperty(ArrowFlightConnectionProperty.USER.camelName(),
-        userTest);
-    properties.setProperty(ArrowFlightConnectionProperty.PASSWORD.camelName(),
-        passTest);
+    properties.setProperty(ArrowFlightConnectionProperty.USER.camelName(), userTest);
+    properties.setProperty(ArrowFlightConnectionProperty.PASSWORD.camelName(), passTest);
     properties.setProperty(BuiltInConnectionProperty.KEYSTORE.camelName(), keyStorePath);
     properties.setProperty(BuiltInConnectionProperty.KEYSTORE_PASSWORD.camelName(), keyStorePass);
     properties.setProperty(ArrowFlightConnectionProperty.USE_TLS.camelName(), "1");
@@ -409,10 +401,8 @@ public class ConnectionTlsTest {
 
     Properties properties = new Properties();
 
-    properties.put(ArrowFlightConnectionProperty.USER.camelName(),
-        userTest);
-    properties.put(ArrowFlightConnectionProperty.PASSWORD.camelName(),
-        passTest);
+    properties.put(ArrowFlightConnectionProperty.USER.camelName(), userTest);
+    properties.put(ArrowFlightConnectionProperty.PASSWORD.camelName(), passTest);
     properties.put(ArrowFlightConnectionProperty.USE_TLS.camelName(), 1);
     properties.put(BuiltInConnectionProperty.KEYSTORE.camelName(), keyStorePath);
     properties.put(BuiltInConnectionProperty.KEYSTORE_PASSWORD.camelName(), keyStorePass);
