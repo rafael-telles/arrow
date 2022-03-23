@@ -143,12 +143,6 @@
             <artifactId>bcpkix-jdk15on</artifactId>
             <version>1.61</version>
         </dependency>
-        <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-            <version>4.13</version>
-            <scope>test</scope>
-        </dependency>
     </dependencies>
 
     <build>

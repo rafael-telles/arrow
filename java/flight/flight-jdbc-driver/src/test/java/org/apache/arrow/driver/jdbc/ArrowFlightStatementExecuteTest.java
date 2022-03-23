@@ -114,7 +114,7 @@ public class ArrowFlightStatementExecuteTest {
 
   @AfterClass
   public static void tearDownAfterClass() throws Exception {
-    AutoCloseables.close(SERVER_TEST_RULE, PRODUCER);
+    AutoCloseables.close(PRODUCER);
   }
 
   @Test

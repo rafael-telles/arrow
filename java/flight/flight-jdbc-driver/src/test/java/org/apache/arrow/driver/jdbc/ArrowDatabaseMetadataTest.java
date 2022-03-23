@@ -48,6 +48,7 @@ import java.util.function.Consumer;
 
 import org.apache.arrow.driver.jdbc.utils.MockFlightSqlProducer;
 import org.apache.arrow.driver.jdbc.utils.ResultSetTestUtils;
+import org.apache.arrow.driver.jdbc.utils.ThrowableAssertionUtils;
 import org.apache.arrow.flight.FlightProducer.ServerStreamListener;
 import org.apache.arrow.flight.sql.FlightSqlProducer.Schemas;
 import org.apache.arrow.flight.sql.impl.FlightSql;
@@ -602,7 +603,7 @@ public class ArrowDatabaseMetadataTest {
 
   @AfterClass
   public static void tearDown() throws Exception {
-    AutoCloseables.close(connection, FLIGHT_SERVER_TEST_RULE, FLIGHT_SQL_PRODUCER);
+    AutoCloseables.close(connection, FLIGHT_SQL_PRODUCER);
   }
 
 
@@ -915,9 +916,9 @@ public class ArrowDatabaseMetadataTest {
     collector.checkThat(metaData.supportsDifferentTableCorrelationNames(),
         is(EXPECTED_SUPPORTS_DIFFERENT_TABLE_CORRELATION_NAMES));
 
-    collector.checkThrows(SQLException.class,
+    ThrowableAssertionUtils.simpleAssertThrowableClass(SQLException.class,
         () -> metaData.supportsTransactionIsolationLevel(Connection.TRANSACTION_SERIALIZABLE + 1));
-    collector.checkThrows(SQLException.class,
+    ThrowableAssertionUtils.simpleAssertThrowableClass(SQLException.class,
         () -> metaData.supportsResultSetType(ResultSet.HOLD_CURSORS_OVER_COMMIT));
   }
 
