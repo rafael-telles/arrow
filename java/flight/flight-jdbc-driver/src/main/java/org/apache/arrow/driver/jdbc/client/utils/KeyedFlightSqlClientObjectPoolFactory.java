@@ -59,7 +59,7 @@ public class KeyedFlightSqlClientObjectPoolFactory extends BaseKeyedPooledObject
 
   @Override
   public PooledObject<FlightSqlClient> wrap(FlightSqlClient value) {
-    logger.info("Wrapping a existing FlightSqlClient.");
+    logger.info("Wrapping an existing FlightSqlClient.");
     return new DefaultPooledObject<>(value);
   }
 
