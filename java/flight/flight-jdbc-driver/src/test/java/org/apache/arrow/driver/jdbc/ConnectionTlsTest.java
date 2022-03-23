@@ -262,7 +262,7 @@ public class ConnectionTlsTest {
     final Driver driver = new ArrowFlightJdbcDriver();
     DriverManager.registerDriver(driver);
 
-    Connection connection = DriverManager.getConnection(
+    final Connection connection = DriverManager.getConnection(
         String.format(
             "jdbc:arrow-flight://localhost:%s?user=%s&password=%s&useTls=true&%s=%s&%s=%s",
             FLIGHT_SERVER_TEST_RULE.getPort(),
@@ -296,7 +296,7 @@ public class ConnectionTlsTest {
     properties.setProperty(BuiltInConnectionProperty.KEYSTORE_PASSWORD.camelName(), keyStorePass);
     properties.setProperty(ArrowFlightConnectionProperty.USE_TLS.camelName(), "true");
 
-    Connection connection = DriverManager.getConnection(
+    final Connection connection = DriverManager.getConnection(
         String.format(
             "jdbc:arrow-flight://localhost:%s",
             FLIGHT_SERVER_TEST_RULE.getPort()),
@@ -325,7 +325,7 @@ public class ConnectionTlsTest {
     properties.put(BuiltInConnectionProperty.KEYSTORE.camelName(), keyStorePath);
     properties.put(BuiltInConnectionProperty.KEYSTORE_PASSWORD.camelName(), keyStorePass);
 
-    Connection connection = DriverManager.getConnection(
+    final Connection connection = DriverManager.getConnection(
         String.format(
             "jdbc:arrow-flight://localhost:%s",
             FLIGHT_SERVER_TEST_RULE.getPort()),
@@ -346,7 +346,7 @@ public class ConnectionTlsTest {
     final Driver driver = new ArrowFlightJdbcDriver();
     DriverManager.registerDriver(driver);
 
-    Connection connection = DriverManager.getConnection(
+    final Connection connection = DriverManager.getConnection(
         String.format(
             "jdbc:arrow-flight://localhost:%s?user=%s&password=%s&useTls=1&%s=%s&%s=%s",
             FLIGHT_SERVER_TEST_RULE.getPort(),
@@ -380,7 +380,7 @@ public class ConnectionTlsTest {
     properties.setProperty(BuiltInConnectionProperty.KEYSTORE_PASSWORD.camelName(), keyStorePass);
     properties.setProperty(ArrowFlightConnectionProperty.USE_TLS.camelName(), "1");
 
-    Connection connection = DriverManager.getConnection(
+    final Connection connection = DriverManager.getConnection(
         String.format("jdbc:arrow-flight://localhost:%s", FLIGHT_SERVER_TEST_RULE.getPort()),
         properties);
     Assert.assertTrue(connection.isValid(0));
@@ -407,7 +407,7 @@ public class ConnectionTlsTest {
     properties.put(BuiltInConnectionProperty.KEYSTORE.camelName(), keyStorePath);
     properties.put(BuiltInConnectionProperty.KEYSTORE_PASSWORD.camelName(), keyStorePass);
 
-    Connection connection = DriverManager.getConnection(
+    final Connection connection = DriverManager.getConnection(
         String.format("jdbc:arrow-flight://localhost:%s",
             FLIGHT_SERVER_TEST_RULE.getPort()),
         properties);
