@@ -201,7 +201,7 @@ public class ConnectionTest {
    *
    * @throws SQLException The exception expected to be thrown.
    */
-  @Test(expected = SQLException.class)
+  @Test(expected = RuntimeException.class)
   public void testUnencryptedConnectionShouldThrowExceptionWhenProvidedWithInvalidCredentials()
       throws Exception {
 

@@ -28,6 +28,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.arrow.driver.jdbc.client.utils.ClientAuthenticationUtils;
+import org.apache.arrow.driver.jdbc.utils.RpcExceptionMapper;
 import org.apache.arrow.flight.CallOption;
 import org.apache.arrow.flight.FlightClient;
 import org.apache.arrow.flight.FlightClientMiddleware;
@@ -54,15 +55,16 @@ import org.apache.calcite.avatica.Meta.StatementType;
  * A {@link FlightSqlClient} handler.
  */
 public final class ArrowFlightSqlClientHandler implements AutoCloseable {
-
   private final FlightSqlClient sqlClient;
   private final Set<CallOption> options = new HashSet<>();
 
-  ArrowFlightSqlClientHandler(final FlightSqlClient sqlClient,
-                              final Collection<CallOption> options) {
+
+
+  ArrowFlightSqlClientHandler(final FlightSqlClient sqlClient, final Collection<CallOption> options) {
     this.options.addAll(options);
     this.sqlClient = Preconditions.checkNotNull(sqlClient);
   }
+
 
   /**
    * Creates a new {@link ArrowFlightSqlClientHandler} from the provided {@code client} and {@code options}.
@@ -93,10 +95,8 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
    * @return a {@code FlightStream} of results.
    */
   public List<FlightStream> getStreams(final FlightInfo flightInfo) {
-    return flightInfo.getEndpoints().stream()
-        .map(FlightEndpoint::getTicket)
-        .map(ticket -> sqlClient.getStream(ticket, getOptions()))
-        .collect(Collectors.toList());
+    return flightInfo.getEndpoints().stream().map(FlightEndpoint::getTicket)
+        .map(ticket -> sqlClient.getStream(ticket, getOptions())).collect(Collectors.toList());
   }
 
   /**
@@ -120,51 +120,13 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
   }
 
   /**
-   * A prepared statement handler.
-   */
-  public interface PreparedStatement extends AutoCloseable {
-    /**
-     * Executes this {@link PreparedStatement}.
-     *
-     * @return the {@link FlightInfo} representing the outcome of this query execution.
-     * @throws SQLException on error.
-     */
-    FlightInfo executeQuery() throws SQLException;
-
-    /**
-     * Executes a {@link StatementType#UPDATE} query.
-     *
-     * @return the number of rows affected.
-     */
-    long executeUpdate();
-
-    /**
-     * Gets the {@link StatementType} of this {@link PreparedStatement}.
-     *
-     * @return the Statement Type.
-     */
-    StatementType getType();
-
-    /**
-     * Gets the {@link Schema} of this {@link PreparedStatement}.
-     *
-     * @return {@link Schema}.
-     */
-    Schema getDataSetSchema();
-
-    @Override
-    void close();
-  }
-
-  /**
    * Creates a new {@link PreparedStatement} for the given {@code query}.
    *
    * @param query the SQL query.
    * @return a new prepared statement.
    */
   public PreparedStatement prepare(final String query) {
-    final FlightSqlClient.PreparedStatement preparedStatement =
-        sqlClient.prepare(query, getOptions());
+    final FlightSqlClient.PreparedStatement preparedStatement = sqlClient.prepare(query, getOptions());
     return new PreparedStatement() {
       @Override
       public FlightInfo executeQuery() throws SQLException {
@@ -273,12 +235,10 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
    * @param includeSchema    Whether to include schema.
    * @return a {@code FlightStream} of results.
    */
-  public FlightInfo getTables(final String catalog, final String schemaPattern,
-                              final String tableNamePattern,
+  public FlightInfo getTables(final String catalog, final String schemaPattern, final String tableNamePattern,
                               final List<String> types, final boolean includeSchema) {
 
-    return sqlClient.getTables(catalog, schemaPattern, tableNamePattern, types, includeSchema,
-        getOptions());
+    return sqlClient.getTables(catalog, schemaPattern, tableNamePattern, types, includeSchema, getOptions());
   }
 
   /**
@@ -325,11 +285,47 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
    * @param fkTable   The table name. Must match the table name as it is stored in the database.
    * @return a {@code FlightStream} of results.
    */
-  public FlightInfo getCrossReference(String pkCatalog, String pkSchema, String pkTable,
-                                      String fkCatalog, String fkSchema, String fkTable) {
+  public FlightInfo getCrossReference(String pkCatalog, String pkSchema, String pkTable, String fkCatalog,
+                                      String fkSchema, String fkTable) {
     return sqlClient.getCrossReference(TableRef.of(pkCatalog, pkSchema, pkTable),
-        TableRef.of(fkCatalog, fkSchema, fkTable),
-        getOptions());
+        TableRef.of(fkCatalog, fkSchema, fkTable), getOptions());
+  }
+
+  /**
+   * A prepared statement handler.
+   */
+  public interface PreparedStatement extends AutoCloseable {
+    /**
+     * Executes this {@link PreparedStatement}.
+     *
+     * @return the {@link FlightInfo} representing the outcome of this query execution.
+     * @throws SQLException on error.
+     */
+    FlightInfo executeQuery() throws SQLException;
+
+    /**
+     * Executes a {@link StatementType#UPDATE} query.
+     *
+     * @return the number of rows affected.
+     */
+    long executeUpdate();
+
+    /**
+     * Gets the {@link StatementType} of this {@link PreparedStatement}.
+     *
+     * @return the Statement Type.
+     */
+    StatementType getType();
+
+    /**
+     * Gets the {@link Schema} of this {@link PreparedStatement}.
+     *
+     * @return {@link Schema}.
+     */
+    Schema getDataSetSchema();
+
+    @Override
+    void close();
   }
 
   /**
@@ -427,8 +423,9 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
 
     /**
      * Sets the token used in the token authetication.
+     *
      * @param token the token value.
-     * @return      this builder instance.
+     * @return this builder instance.
      */
     public Builder withToken(final String token) {
       this.token = token;
@@ -463,8 +460,7 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
      * @param factories the factories to add.
      * @return this instance.
      */
-    public Builder withMiddlewareFactories(
-        final Collection<FlightClientMiddleware.Factory> factories) {
+    public Builder withMiddlewareFactories(final Collection<FlightClientMiddleware.Factory> factories) {
       this.middlewareFactories.addAll(factories);
       return this;
     }
@@ -501,8 +497,7 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
       try {
         ClientIncomingAuthHeaderMiddleware.Factory authFactory = null;
         if (username != null) {
-          authFactory =
-              new ClientIncomingAuthHeaderMiddleware.Factory(new ClientBearerHeaderHandler());
+          authFactory = new ClientIncomingAuthHeaderMiddleware.Factory(new ClientBearerHeaderHandler());
           withMiddlewareFactories(authFactory);
         }
         final FlightClient.Builder clientBuilder = FlightClient.builder().allocator(allocator);
@@ -522,17 +517,24 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
         }
         client = clientBuilder.build();
         if (authFactory != null) {
-          options.add(
-              ClientAuthenticationUtils.getAuthenticate(client, username, password, authFactory));
+          options.add(ClientAuthenticationUtils.getAuthenticate(client, username, password, authFactory));
         } else if (token != null) {
-          options.add(
-              ClientAuthenticationUtils.getAuthenticate(
-                  client, new CredentialCallOption(new BearerCredentialWriter(token))));
+          options.add(ClientAuthenticationUtils.getAuthenticate(client,
+              new CredentialCallOption(new BearerCredentialWriter(token))));
         }
         return ArrowFlightSqlClientHandler.createNewHandler(client, options);
-
-      } catch (final IllegalArgumentException | GeneralSecurityException | IOException | FlightRuntimeException e) {
-        final SQLException originalException = new SQLException(e);
+      } catch (final IllegalArgumentException | GeneralSecurityException | IOException e) {
+        SQLException originalException = new SQLException(e);
+        if (client != null) {
+          try {
+            client.close();
+          } catch (final InterruptedException interruptedException) {
+            originalException.addSuppressed(interruptedException);
+          }
+        }
+        throw originalException;
+      } catch (final FlightRuntimeException e) {
+        SQLException originalException = RpcExceptionMapper.map(e, "Failure in connection: %s", e.toString());
         if (client != null) {
           try {
             client.close();
