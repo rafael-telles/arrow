@@ -68,7 +68,7 @@ public class FlightToJDBCExceptionMapperTest {
 
   private void assertMapStates(CallStatus timedOut, String code) {
     FlightRuntimeException flightRuntimeException =
-        timedOut.withDescription("Failure in connection: %s").toRuntimeException();
+        timedOut.toRuntimeException();
     SQLException map =
         FlightToJDBCExceptionMapper.map(flightRuntimeException);
     Assert.assertEquals(code, map.getSQLState());
