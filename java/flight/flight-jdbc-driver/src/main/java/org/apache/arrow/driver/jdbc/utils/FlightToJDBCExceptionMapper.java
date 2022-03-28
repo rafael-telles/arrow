@@ -30,31 +30,31 @@ import com.google.common.collect.ImmutableMap;
  */
 public class FlightToJDBCExceptionMapper {
 
-  private static final String UNAUTHENTICATED = "28000";
-  private static final String UNAUTHORIZED = "42000";
-  private static final String UNAVAILABLE = "08001";
-  private static final String UNIMPLEMENTED = "0A000";
-  private static final String CANCELLED = "HY008";
-  private static final String ALREADY_EXISTS = "21000";
-  private static final String NOT_FOUND = "42000";
-  private static final String TIMED_OUT = "HYT01";
-  private static final String INVALID_ARGUMENT = "2200T";
-  private static final String INTERNAL = "01000";
-  private static final String UNKNOWN = "01000";
+  private static final String SQL_STATE_UNAUTHENTICATED = "28000";
+  private static final String SQL_STATE_UNAUTHORIZED = "42000";
+  private static final String SQL_STATE_UNAVAILABLE = "08001";
+  private static final String SQL_STATE_UNIMPLEMENTED = "0A000";
+  private static final String SQL_STATE_CANCELLED = "HY008";
+  private static final String SQL_STATE_ALREADY_EXISTS = "21000";
+  private static final String SQL_STATE_NOT_FOUND = "42000";
+  private static final String SQL_STATE_TIMED_OUT = "HYT01";
+  private static final String SQL_STATE_INVALID_ARGUMENT = "2200T";
+  private static final String SQL_STATE_INTERNAL = "01000";
+  private static final String SQL_STATE_UNKNOWN = "01000";
 
   private static final Map<FlightStatusCode, String> errorStatusSQLStateMap =
       new ImmutableMap.Builder<FlightStatusCode, String>()
-          .put(FlightStatusCode.UNAUTHENTICATED, UNAUTHENTICATED)
-          .put(FlightStatusCode.UNAUTHORIZED, UNAUTHORIZED)
-          .put(FlightStatusCode.UNAVAILABLE, UNAVAILABLE)
-          .put(FlightStatusCode.UNIMPLEMENTED, UNIMPLEMENTED)
-          .put(FlightStatusCode.CANCELLED, CANCELLED)
-          .put(FlightStatusCode.ALREADY_EXISTS, ALREADY_EXISTS)
-          .put(FlightStatusCode.NOT_FOUND, NOT_FOUND)
-          .put(FlightStatusCode.TIMED_OUT, TIMED_OUT)
-          .put(FlightStatusCode.INVALID_ARGUMENT, INVALID_ARGUMENT)
-          .put(FlightStatusCode.INTERNAL, INTERNAL)
-          .put(FlightStatusCode.UNKNOWN, UNKNOWN).build();
+          .put(FlightStatusCode.UNAUTHENTICATED, SQL_STATE_UNAUTHENTICATED)
+          .put(FlightStatusCode.UNAUTHORIZED, SQL_STATE_UNAUTHORIZED)
+          .put(FlightStatusCode.UNAVAILABLE, SQL_STATE_UNAVAILABLE)
+          .put(FlightStatusCode.UNIMPLEMENTED, SQL_STATE_UNIMPLEMENTED)
+          .put(FlightStatusCode.CANCELLED, SQL_STATE_CANCELLED)
+          .put(FlightStatusCode.ALREADY_EXISTS, SQL_STATE_ALREADY_EXISTS)
+          .put(FlightStatusCode.NOT_FOUND, SQL_STATE_NOT_FOUND)
+          .put(FlightStatusCode.TIMED_OUT, SQL_STATE_TIMED_OUT)
+          .put(FlightStatusCode.INVALID_ARGUMENT, SQL_STATE_INVALID_ARGUMENT)
+          .put(FlightStatusCode.INTERNAL, SQL_STATE_INTERNAL)
+          .put(FlightStatusCode.UNKNOWN, SQL_STATE_UNKNOWN).build();
 
   private FlightToJDBCExceptionMapper() {}
 
