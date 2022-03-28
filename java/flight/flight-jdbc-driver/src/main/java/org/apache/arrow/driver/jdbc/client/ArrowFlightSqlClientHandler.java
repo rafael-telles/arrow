@@ -93,11 +93,15 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
    * @param flightInfo The {@link FlightInfo} instance from which to fetch results.
    * @return a {@code FlightStream} of results.
    */
-  public List<FlightStream> getStreams(final FlightInfo flightInfo) {
-    return flightInfo.getEndpoints().stream()
-        .map(FlightEndpoint::getTicket)
-        .map(ticket -> sqlClient.getStream(ticket, getOptions()))
-        .collect(Collectors.toList());
+  public List<FlightStream> getStreams(final FlightInfo flightInfo) throws SQLException {
+    try {
+      return flightInfo.getEndpoints().stream()
+          .map(FlightEndpoint::getTicket)
+          .map(ticket -> sqlClient.getStream(ticket, getOptions()))
+          .collect(Collectors.toList());
+    } catch (final FlightRuntimeException e) {
+      throw FlightToJDBCExceptionMapper.map(e, "Failure in connection: ");
+    }
   }
 
   /**
@@ -163,7 +167,8 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
    * @param query the SQL query.
    * @return a new prepared statement.
    */
-  public PreparedStatement prepare(final String query) {
+  public PreparedStatement prepare(final String query) throws SQLException {
+
     final FlightSqlClient.PreparedStatement preparedStatement =
         sqlClient.prepare(query, getOptions());
     return new PreparedStatement() {
@@ -200,8 +205,12 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
    *
    * @return a {@code FlightStream} of results.
    */
-  public FlightInfo getCatalogs() {
-    return sqlClient.getCatalogs(getOptions());
+  public FlightInfo getCatalogs() throws SQLException {
+    try {
+      return sqlClient.getCatalogs(getOptions());
+    } catch (final FlightRuntimeException e) {
+      throw FlightToJDBCExceptionMapper.map(e, "Failure in connection: ");
+    }
   }
 
   /**
@@ -216,8 +225,12 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
    * @param table   The table name. Must match the table name as it is stored in the database.
    * @return a {@code FlightStream} of results.
    */
-  public FlightInfo getImportedKeys(final String catalog, final String schema, final String table) {
-    return sqlClient.getImportedKeys(TableRef.of(catalog, schema, table), getOptions());
+  public FlightInfo getImportedKeys(final String catalog, final String schema, final String table) throws SQLException {
+    try {
+      return sqlClient.getImportedKeys(TableRef.of(catalog, schema, table), getOptions());
+    } catch (final FlightRuntimeException e) {
+      throw FlightToJDBCExceptionMapper.map(e, "Failure in connection: ");
+    }
   }
 
   /**
@@ -232,8 +245,12 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
    * @param table   The table name. Must match the table name as it is stored in the database.
    * @return a {@code FlightStream} of results.
    */
-  public FlightInfo getExportedKeys(final String catalog, final String schema, final String table) {
-    return sqlClient.getExportedKeys(TableRef.of(catalog, schema, table), getOptions());
+  public FlightInfo getExportedKeys(final String catalog, final String schema, final String table) throws SQLException {
+    try {
+      return sqlClient.getExportedKeys(TableRef.of(catalog, schema, table), getOptions());
+    } catch (final FlightRuntimeException e) {
+      throw FlightToJDBCExceptionMapper.map(e, "Failure in connection: ");
+    }
   }
 
   /**
@@ -246,8 +263,12 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
    *                      Null means that schema name should not be used to narrow down the search.
    * @return a {@code FlightStream} of results.
    */
-  public FlightInfo getSchemas(final String catalog, final String schemaPattern) {
-    return sqlClient.getSchemas(catalog, schemaPattern, getOptions());
+  public FlightInfo getSchemas(final String catalog, final String schemaPattern) throws SQLException {
+    try {
+      return sqlClient.getSchemas(catalog, schemaPattern, getOptions());
+    } catch (final FlightRuntimeException e) {
+      throw FlightToJDBCExceptionMapper.map(e, "Failure in connection: ");
+    }
   }
 
   /**
@@ -255,8 +276,12 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
    *
    * @return a {@code FlightStream} of results.
    */
-  public FlightInfo getTableTypes() {
-    return sqlClient.getTableTypes(getOptions());
+  public FlightInfo getTableTypes() throws SQLException {
+    try {
+      return sqlClient.getTableTypes(getOptions());
+    } catch (final FlightRuntimeException e) {
+      throw FlightToJDBCExceptionMapper.map(e, "Failure in connection: ");
+    }
   }
 
   /**
@@ -276,10 +301,13 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
    */
   public FlightInfo getTables(final String catalog, final String schemaPattern,
                               final String tableNamePattern,
-                              final List<String> types, final boolean includeSchema) {
-
-    return sqlClient.getTables(catalog, schemaPattern, tableNamePattern, types, includeSchema,
-        getOptions());
+                              final List<String> types, final boolean includeSchema) throws SQLException {
+    try {
+      return sqlClient.getTables(catalog, schemaPattern, tableNamePattern, types, includeSchema,
+          getOptions());
+    } catch (final FlightRuntimeException e) {
+      throw FlightToJDBCExceptionMapper.map(e, "Failure in connection: ");
+    }
   }
 
   /**
@@ -287,8 +315,12 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
    *
    * @return the SQL info.
    */
-  public FlightInfo getSqlInfo(SqlInfo... info) {
-    return sqlClient.getSqlInfo(info, getOptions());
+  public FlightInfo getSqlInfo(SqlInfo... info) throws SQLException {
+    try {
+      return sqlClient.getSqlInfo(info, getOptions());
+    } catch (final FlightRuntimeException e) {
+      throw FlightToJDBCExceptionMapper.map(e, "Failure in connection: ");
+    }
   }
 
   /**
@@ -303,8 +335,12 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
    * @param table   The table name. Must match the table name as it is stored in the database.
    * @return a {@code FlightStream} of results.
    */
-  public FlightInfo getPrimaryKeys(final String catalog, final String schema, final String table) {
-    return sqlClient.getPrimaryKeys(TableRef.of(catalog, schema, table), getOptions());
+  public FlightInfo getPrimaryKeys(final String catalog, final String schema, final String table) throws SQLException {
+    try {
+      return sqlClient.getPrimaryKeys(TableRef.of(catalog, schema, table), getOptions());
+    } catch (final FlightRuntimeException e) {
+      throw FlightToJDBCExceptionMapper.map(e, "Failure in connection: ");
+    }
   }
 
   /**
@@ -327,10 +363,14 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
    * @return a {@code FlightStream} of results.
    */
   public FlightInfo getCrossReference(String pkCatalog, String pkSchema, String pkTable,
-                                      String fkCatalog, String fkSchema, String fkTable) {
-    return sqlClient.getCrossReference(TableRef.of(pkCatalog, pkSchema, pkTable),
-        TableRef.of(fkCatalog, fkSchema, fkTable),
-        getOptions());
+                                      String fkCatalog, String fkSchema, String fkTable) throws SQLException {
+    try {
+      return sqlClient.getCrossReference(TableRef.of(pkCatalog, pkSchema, pkTable),
+          TableRef.of(fkCatalog, fkSchema, fkTable),
+          getOptions());
+    } catch (final FlightRuntimeException e) {
+      throw FlightToJDBCExceptionMapper.map(e, "Failure in connection: ");
+    }
   }
 
   /**
@@ -428,8 +468,9 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
 
     /**
      * Sets the token used in the token authetication.
+     *
      * @param token the token value.
-     * @return      this builder instance.
+     * @return this builder instance.
      */
     public Builder withToken(final String token) {
       this.token = token;
