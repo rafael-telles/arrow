@@ -27,8 +27,10 @@ import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.arrow.driver.jdbc.utils.FlightStreamQueue;
+import org.apache.arrow.driver.jdbc.utils.FlightToJDBCExceptionMapper;
 import org.apache.arrow.driver.jdbc.utils.VectorSchemaRootTransformer;
 import org.apache.arrow.flight.FlightInfo;
+import org.apache.arrow.flight.FlightRuntimeException;
 import org.apache.arrow.flight.FlightStream;
 import org.apache.arrow.util.AutoCloseables;
 import org.apache.arrow.vector.VectorSchemaRoot;
@@ -162,45 +164,49 @@ public final class ArrowFlightJdbcFlightStreamResultSet
 
   @Override
   public boolean next() throws SQLException {
-    if (currentVectorSchemaRoot == null) {
-      return false;
-    }
-    while (true) {
-      final boolean hasNext = super.next();
-      final int maxRows = statement != null ? statement.getMaxRows() : 0;
-      if (maxRows != 0 && this.getRow() > maxRows) {
-        if (statement.isCloseOnCompletion()) {
-          statement.close();
-        }
+    try {
+      if (currentVectorSchemaRoot == null) {
         return false;
       }
+      while (true) {
+        final boolean hasNext = super.next();
+        final int maxRows = statement != null ? statement.getMaxRows() : 0;
+        if (maxRows != 0 && this.getRow() > maxRows) {
+          if (statement.isCloseOnCompletion()) {
+            statement.close();
+          }
+          return false;
+        }
 
-      if (hasNext) {
-        return true;
-      }
+        if (hasNext) {
+          return true;
+        }
 
-      if (currentFlightStream != null) {
-        currentFlightStream.getRoot().clear();
-        if (currentFlightStream.next()) {
+        if (currentFlightStream != null) {
+          currentFlightStream.getRoot().clear();
+          if (currentFlightStream.next()) {
+            executeForCurrentFlightStream();
+            continue;
+          }
+
+          flightStreamQueue.enqueue(currentFlightStream);
+        }
+
+        currentFlightStream = getNextFlightStream(false);
+
+        if (currentFlightStream != null) {
           executeForCurrentFlightStream();
           continue;
         }
 
-        flightStreamQueue.enqueue(currentFlightStream);
+        if (statement != null && statement.isCloseOnCompletion()) {
+          statement.close();
+        }
+
+        return false;
       }
-
-      currentFlightStream = getNextFlightStream(false);
-
-      if (currentFlightStream != null) {
-        executeForCurrentFlightStream();
-        continue;
-      }
-
-      if (statement != null && statement.isCloseOnCompletion()) {
-        statement.close();
-      }
-
-      return false;
+    } catch (final FlightRuntimeException e) {
+      throw FlightToJDBCExceptionMapper.map(e, "Failed to access the resource: ");
     }
   }
 

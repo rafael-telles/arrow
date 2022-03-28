@@ -100,7 +100,7 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
           .map(ticket -> sqlClient.getStream(ticket, getOptions()))
           .collect(Collectors.toList());
     } catch (final FlightRuntimeException e) {
-      throw FlightToJDBCExceptionMapper.map(e, "Failure in connection: ");
+      throw FlightToJDBCExceptionMapper.map(e, "Failed to get streams: ");
     }
   }
 
@@ -209,7 +209,7 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
     try {
       return sqlClient.getCatalogs(getOptions());
     } catch (final FlightRuntimeException e) {
-      throw FlightToJDBCExceptionMapper.map(e, "Failure in connection: ");
+      throw FlightToJDBCExceptionMapper.map(e, "Failed to access catalogs: ");
     }
   }
 
@@ -229,7 +229,7 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
     try {
       return sqlClient.getImportedKeys(TableRef.of(catalog, schema, table), getOptions());
     } catch (final FlightRuntimeException e) {
-      throw FlightToJDBCExceptionMapper.map(e, "Failure in connection: ");
+      throw FlightToJDBCExceptionMapper.map(e, "Failed to get imported keys: ");
     }
   }
 
@@ -249,7 +249,7 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
     try {
       return sqlClient.getExportedKeys(TableRef.of(catalog, schema, table), getOptions());
     } catch (final FlightRuntimeException e) {
-      throw FlightToJDBCExceptionMapper.map(e, "Failure in connection: ");
+      throw FlightToJDBCExceptionMapper.map(e, "Failed to get exported keys: ");
     }
   }
 
@@ -267,7 +267,7 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
     try {
       return sqlClient.getSchemas(catalog, schemaPattern, getOptions());
     } catch (final FlightRuntimeException e) {
-      throw FlightToJDBCExceptionMapper.map(e, "Failure in connection: ");
+      throw FlightToJDBCExceptionMapper.map(e, "Failed to get schemas: ");
     }
   }
 
@@ -280,7 +280,7 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
     try {
       return sqlClient.getTableTypes(getOptions());
     } catch (final FlightRuntimeException e) {
-      throw FlightToJDBCExceptionMapper.map(e, "Failure in connection: ");
+      throw FlightToJDBCExceptionMapper.map(e, "Failed to get table types: ");
     }
   }
 
@@ -306,7 +306,7 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
       return sqlClient.getTables(catalog, schemaPattern, tableNamePattern, types, includeSchema,
           getOptions());
     } catch (final FlightRuntimeException e) {
-      throw FlightToJDBCExceptionMapper.map(e, "Failure in connection: ");
+      throw FlightToJDBCExceptionMapper.map(e, "Failed to get tables: ");
     }
   }
 
@@ -319,7 +319,7 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
     try {
       return sqlClient.getSqlInfo(info, getOptions());
     } catch (final FlightRuntimeException e) {
-      throw FlightToJDBCExceptionMapper.map(e, "Failure in connection: ");
+      throw FlightToJDBCExceptionMapper.map(e, "Failed to get SQL info: ");
     }
   }
 
@@ -339,7 +339,7 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
     try {
       return sqlClient.getPrimaryKeys(TableRef.of(catalog, schema, table), getOptions());
     } catch (final FlightRuntimeException e) {
-      throw FlightToJDBCExceptionMapper.map(e, "Failure in connection: ");
+      throw FlightToJDBCExceptionMapper.map(e, "Failed to get primary keys: ");
     }
   }
 
@@ -369,7 +369,7 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
           TableRef.of(fkCatalog, fkSchema, fkTable),
           getOptions());
     } catch (final FlightRuntimeException e) {
-      throw FlightToJDBCExceptionMapper.map(e, "Failure in connection: ");
+      throw FlightToJDBCExceptionMapper.map(e, "Failed to get cross reference: ");
     }
   }
 
@@ -585,7 +585,7 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
         throw originalException;
       } catch (final FlightRuntimeException e) {
         SQLException runtimeToSQLException = FlightToJDBCExceptionMapper
-            .map(e, "Failure in connection: ");
+            .map(e, "Failed to connect: ");
         if (client != null) {
           try {
             client.close();
