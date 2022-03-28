@@ -206,7 +206,7 @@ public final class ArrowFlightJdbcFlightStreamResultSet
         return false;
       }
     } catch (final FlightRuntimeException e) {
-      throw FlightToJDBCExceptionMapper.map(e, "Failed to access the resource: ");
+      throw FlightToJDBCExceptionMapper.map(e, "Failed to retrieve next row on ResultSet.");
     }
   }
 
