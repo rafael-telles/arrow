@@ -22,6 +22,9 @@ import org.apache.arrow.flight.sql.FlightSqlClient;
 import org.apache.commons.pool2.KeyedPooledObjectFactory;
 import org.apache.commons.pool2.impl.GenericKeyedObjectPool;
 
+/**
+ * Draft.
+ */
 public class KeyedFlightSqlClientObjectPool extends GenericKeyedObjectPool<Location, FlightSqlClient> {
 
   public KeyedFlightSqlClientObjectPool(KeyedPooledObjectFactory<Location, FlightSqlClient> factory) {

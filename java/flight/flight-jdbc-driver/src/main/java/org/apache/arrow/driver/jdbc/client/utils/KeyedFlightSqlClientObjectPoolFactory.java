@@ -29,11 +29,18 @@ import org.apache.commons.pool2.impl.DefaultPooledObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Draft.
+ */
 public class KeyedFlightSqlClientObjectPoolFactory extends BaseKeyedPooledObjectFactory<Location, FlightSqlClient> {
   private static final Logger logger = LoggerFactory.getLogger(KeyedFlightSqlClientObjectPoolFactory.class);
   private final BufferAllocator parentAllocator;
   private final AtomicInteger clientCounter = new AtomicInteger();
 
+  /**
+   * Draft.
+   * @param parentAllocator allocator.
+   */
   public KeyedFlightSqlClientObjectPoolFactory(final BufferAllocator parentAllocator) {
     super();
     this.parentAllocator = parentAllocator
