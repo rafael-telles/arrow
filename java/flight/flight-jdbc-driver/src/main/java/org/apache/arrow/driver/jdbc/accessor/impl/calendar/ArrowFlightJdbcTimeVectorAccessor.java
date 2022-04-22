@@ -44,6 +44,8 @@ import org.apache.arrow.vector.ValueVector;
  */
 public class ArrowFlightJdbcTimeVectorAccessor extends ArrowFlightJdbcAccessor {
 
+  private static final int ISO_8601_MILLISECOND_LENGTH = 3;
+
   private final Getter getter;
   private final TimeUnit timeUnit;
   private final Holder holder;
@@ -126,7 +128,12 @@ public class ArrowFlightJdbcTimeVectorAccessor extends ArrowFlightJdbcAccessor {
     long value = holder.value;
     long milliseconds = this.timeUnit.toMillis(value);
 
-    return new Time(DateTimeUtils.applyCalendarOffset(milliseconds, calendar));
+    return new Time(DateTimeUtils.applyCalendarOffset(milliseconds, calendar)) {
+      @Override
+      public String toString() {
+        return unixTimeToString((int) (milliseconds % MILLIS_PER_DAY), ISO_8601_MILLISECOND_LENGTH);
+      }
+    };
   }
 
   private void fillHolder() {
@@ -151,7 +158,7 @@ public class ArrowFlightJdbcTimeVectorAccessor extends ArrowFlightJdbcAccessor {
       return null;
     }
     long milliseconds = timeUnit.toMillis(holder.value);
-    return unixTimeToString((int) (milliseconds % MILLIS_PER_DAY));
+    return unixTimeToString((int) (milliseconds % MILLIS_PER_DAY), ISO_8601_MILLISECOND_LENGTH);
   }
 
   protected static TimeUnit getTimeUnitForVector(ValueVector vector) {
