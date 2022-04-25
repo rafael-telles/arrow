@@ -39,6 +39,7 @@ public class ArrowFlightJdbcTime extends Time {
 
   /**
    * Constructs this object based on a {@link LocalTime} object.
+   *
    * @param time a {@link java.time.LocalDateTime} representing a {@link Time} object.
    */
   public ArrowFlightJdbcTime(LocalTime time) {
@@ -66,5 +67,19 @@ public class ArrowFlightJdbcTime extends Time {
     }
 
     return time.toString();
+  }
+
+  // Spotbugs requires these methods to be overridden
+  @Override
+  public boolean equals(Object obj) {
+    if ((obj instanceof ArrowFlightJdbcTime) && super.equals(obj)) {
+      return this.millisOfSecond == ((ArrowFlightJdbcTime) obj).millisOfSecond;
+    }
+    return false;
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(super.hashCode(), this.millisOfSecond);
   }
 }
