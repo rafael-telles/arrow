@@ -25,10 +25,13 @@ import static org.apache.calcite.avatica.util.DateTimeUtils.unixTimeToString;
 
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.time.LocalTime;
 import java.util.Calendar;
+import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 import java.util.function.IntSupplier;
 
+import org.apache.arrow.driver.jdbc.ArrowFlightJdbcTime;
 import org.apache.arrow.driver.jdbc.accessor.ArrowFlightJdbcAccessor;
 import org.apache.arrow.driver.jdbc.accessor.ArrowFlightJdbcAccessorFactory;
 import org.apache.arrow.driver.jdbc.utils.DateTimeUtils;
@@ -128,12 +131,17 @@ public class ArrowFlightJdbcTimeVectorAccessor extends ArrowFlightJdbcAccessor {
     long value = holder.value;
     long milliseconds = this.timeUnit.toMillis(value);
 
-    return new Time(DateTimeUtils.applyCalendarOffset(milliseconds, calendar)) {
-      @Override
-      public String toString() {
-        return unixTimeToString((int) (milliseconds % MILLIS_PER_DAY), ISO_8601_MILLISECOND_LENGTH);
-      }
-    };
+
+    if (calendar != null && calendar.getTimeZone() != TimeZone.getDefault()) {
+      milliseconds -= calendar.getTimeZone().getOffset(milliseconds) - TimeZone.getDefault().getOffset(milliseconds);
+    }
+    if (milliseconds > MILLIS_PER_DAY) {
+      milliseconds %= MILLIS_PER_DAY;
+    } else if (milliseconds < 0) {
+      milliseconds -= ((milliseconds / MILLIS_PER_DAY) - 1) * MILLIS_PER_DAY;
+    }
+
+    return new ArrowFlightJdbcTime(LocalTime.ofNanoOfDay(TimeUnit.MILLISECONDS.toNanos(milliseconds)));
   }
 
   private void fillHolder() {
@@ -153,12 +161,7 @@ public class ArrowFlightJdbcTimeVectorAccessor extends ArrowFlightJdbcAccessor {
 
   @Override
   public String getString() {
-    fillHolder();
-    if (wasNull) {
-      return null;
-    }
-    long milliseconds = timeUnit.toMillis(holder.value);
-    return unixTimeToString((int) (milliseconds % MILLIS_PER_DAY), ISO_8601_MILLISECOND_LENGTH);
+    return getObject().toString();
   }
 
   protected static TimeUnit getTimeUnitForVector(ValueVector vector) {

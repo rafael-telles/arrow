@@ -25,6 +25,7 @@ import static org.hamcrest.CoreMatchers.not;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collection;
@@ -32,6 +33,7 @@ import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
+import org.apache.arrow.driver.jdbc.ArrowFlightJdbcTime;
 import org.apache.arrow.driver.jdbc.accessor.ArrowFlightJdbcAccessorFactory;
 import org.apache.arrow.driver.jdbc.accessor.impl.text.ArrowFlightJdbcVarCharVectorAccessor;
 import org.apache.arrow.driver.jdbc.utils.AccessorTestUtils;
@@ -165,12 +167,12 @@ public class ArrowFlightJdbcTimeVectorAccessorTest {
     Calendar calendar = Calendar.getInstance(timeZone);
 
     accessorIterator.iterate(vector, (accessor, currentRow) -> {
-      final Time resultWithoutCalendar = accessor.getTime(null);
+       final Time resultWithoutCalendar = accessor.getTime(null);
       final Time result = accessor.getTime(calendar);
 
       long offset = timeZone.getOffset(resultWithoutCalendar.getTime());
 
-      collector.checkThat(resultWithoutCalendar.getTime() - result.getTime(), is(offset));
+      collector.checkThat(Math.abs(resultWithoutCalendar.getTime() - result.getTime()), is(offset));
       collector.checkThat(accessor.wasNull(), is(false));
     });
   }
@@ -254,8 +256,10 @@ public class ArrowFlightJdbcTimeVectorAccessorTest {
 
         Time timeFromVarChar = varCharVectorAccessor.getTime(calendar);
         Time time = accessor.getTime(calendar);
+        ArrowFlightJdbcTime arrowFlightJdbcTime =
+            new ArrowFlightJdbcTime(LocalTime.ofNanoOfDay(TimeUnit.MILLISECONDS.toNanos(time.getTime())));
 
-        collector.checkThat(time, is(timeFromVarChar));
+        collector.checkThat(time, is(arrowFlightJdbcTime));
         collector.checkThat(accessor.wasNull(), is(false));
       });
     }
