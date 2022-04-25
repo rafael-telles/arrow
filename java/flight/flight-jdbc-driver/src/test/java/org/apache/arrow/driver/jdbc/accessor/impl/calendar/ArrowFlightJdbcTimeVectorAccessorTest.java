@@ -167,7 +167,7 @@ public class ArrowFlightJdbcTimeVectorAccessorTest {
     Calendar calendar = Calendar.getInstance(timeZone);
 
     accessorIterator.iterate(vector, (accessor, currentRow) -> {
-       final Time resultWithoutCalendar = accessor.getTime(null);
+      final Time resultWithoutCalendar = accessor.getTime(null);
       final Time result = accessor.getTime(calendar);
 
       long offset = timeZone.getOffset(resultWithoutCalendar.getTime());
