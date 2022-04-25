@@ -93,8 +93,11 @@ public class ArrowFlightJdbcDateVectorAccessor extends ArrowFlightJdbcAccessor {
 
     long value = holder.value;
     long milliseconds = this.timeUnit.toMillis(value);
+    long l = DateTimeUtils.applyCalendarOffset(milliseconds, calendar);
 
-    return new Date(DateTimeUtils.applyCalendarOffset(milliseconds, calendar));
+    String s = unixDateToString((int) (l / MILLIS_PER_DAY));
+
+    return Date.valueOf(s);
   }
 
   private void fillHolder() {

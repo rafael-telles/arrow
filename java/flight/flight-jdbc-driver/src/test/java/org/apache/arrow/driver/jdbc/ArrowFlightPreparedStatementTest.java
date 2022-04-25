@@ -20,9 +20,14 @@ package org.apache.arrow.driver.jdbc;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 import java.sql.Connection;
+import java.sql.Date;
+import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Calendar;
+import java.util.Properties;
+import java.util.TimeZone;
 
 import org.apache.arrow.driver.jdbc.utils.CoreMockedSqlProducers;
 import org.junit.AfterClass;
@@ -55,10 +60,25 @@ public class ArrowFlightPreparedStatementTest {
 
   @Test
   public void testSimpleQueryNoParameterBinding() throws SQLException {
-    final String query = CoreMockedSqlProducers.LEGACY_REGULAR_SQL_CMD;
-    try (final PreparedStatement preparedStatement = connection.prepareStatement(query);
-         final ResultSet resultSet = preparedStatement.executeQuery()) {
-      CoreMockedSqlProducers.assertLegacyRegularSqlResultSet(resultSet, collector);
+    TimeZone timeZone = TimeZone.getTimeZone("Asia/Tokyo");
+    Calendar calendar = Calendar.getInstance(timeZone);
+
+    Properties properties = new Properties();
+    properties.put("user", "dremio");
+    properties.put("password", "dremio123");
+
+    final String query = "SELECT DATE '1401-06-01' as literal";
+    try (
+        Connection connection1 = DriverManager
+            .getConnection("jdbc:arrow-flight://automaster.drem.io:32010?useEncryption=false", properties);
+        final PreparedStatement preparedStatement = connection1.prepareStatement(query);
+        final ResultSet resultSet = preparedStatement.executeQuery()) {
+
+      while (resultSet.next()) {
+        Date date = resultSet.getDate(1, calendar);
+        Date date2 = resultSet.getDate(1);
+        System.out.println(1);
+      }
     }
   }
 
