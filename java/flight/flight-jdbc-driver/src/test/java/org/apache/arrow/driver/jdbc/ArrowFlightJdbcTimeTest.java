@@ -17,13 +17,20 @@
 
 package org.apache.arrow.driver.jdbc;
 
+import static org.hamcrest.CoreMatchers.endsWith;
+import static org.hamcrest.CoreMatchers.is;
+
 import java.time.LocalTime;
 import java.util.concurrent.TimeUnit;
 
-import org.junit.Assert;
+import org.junit.ClassRule;
 import org.junit.Test;
+import org.junit.rules.ErrorCollector;
 
 public class ArrowFlightJdbcTimeTest {
+
+  @ClassRule
+  public static final ErrorCollector collector = new ErrorCollector();
   final int hour = 5;
   final int minute = 6;
   final int second = 7;
@@ -33,10 +40,10 @@ public class ArrowFlightJdbcTimeTest {
     // testing the regular case where the precision of the millisecond is 3
     LocalTime dateTime = LocalTime.of(hour, minute, second, (int) TimeUnit.MILLISECONDS.toNanos(999));
     ArrowFlightJdbcTime time = new ArrowFlightJdbcTime(dateTime);
-    Assert.assertTrue(time.toString().endsWith(".999"));
-    Assert.assertEquals(time.getHours(), hour);
-    Assert.assertEquals(time.getMinutes(), minute);
-    Assert.assertEquals(time.getSeconds(), second);
+    collector.checkThat(time.toString(), endsWith(".999"));
+    collector.checkThat(time.getHours(), is(hour));
+    collector.checkThat(time.getMinutes(), is(minute));
+    collector.checkThat(time.getSeconds(), is(second));
   }
 
   @Test
@@ -44,10 +51,10 @@ public class ArrowFlightJdbcTimeTest {
     // test case where one leading zero needs to be added
     LocalTime dateTime = LocalTime.of(hour, minute, second, (int) TimeUnit.MILLISECONDS.toNanos(99));
     ArrowFlightJdbcTime time = new ArrowFlightJdbcTime(dateTime);
-    Assert.assertTrue(time.toString().endsWith(".099"));
-    Assert.assertEquals(time.getHours(), hour);
-    Assert.assertEquals(time.getMinutes(), minute);
-    Assert.assertEquals(time.getSeconds(), second);
+    collector.checkThat(time.toString(), endsWith(".099"));
+    collector.checkThat(time.getHours(), is(hour));
+    collector.checkThat(time.getMinutes(), is(minute));
+    collector.checkThat(time.getSeconds(), is(second));
   }
 
   @Test
@@ -55,10 +62,10 @@ public class ArrowFlightJdbcTimeTest {
     // test case where two leading zeroes needs to be added
     LocalTime dateTime = LocalTime.of(hour, minute, second, (int) TimeUnit.MILLISECONDS.toNanos(1));
     ArrowFlightJdbcTime time = new ArrowFlightJdbcTime(dateTime);
-    Assert.assertTrue(time.toString().endsWith(".001"));
-    Assert.assertEquals(time.getHours(), hour);
-    Assert.assertEquals(time.getMinutes(), minute);
-    Assert.assertEquals(time.getSeconds(), second);
+    collector.checkThat(time.toString(), endsWith(".001"));
+    collector.checkThat(time.getHours(), is(hour));
+    collector.checkThat(time.getMinutes(), is(minute));
+    collector.checkThat(time.getSeconds(), is(second));
   }
 
   @Test
@@ -67,7 +74,7 @@ public class ArrowFlightJdbcTimeTest {
     LocalTime dateTime = LocalTime.of(hour, minute, second, (int) TimeUnit.MILLISECONDS.toNanos(1));
     ArrowFlightJdbcTime time1 = new ArrowFlightJdbcTime(dateTime);
     ArrowFlightJdbcTime time2 = new ArrowFlightJdbcTime(dateTime);
-    Assert.assertEquals(time1, time2);
-    Assert.assertEquals(time1.hashCode(), time2.hashCode());
+    collector.checkThat(time1, is(time2));
+    collector.checkThat(time1.hashCode(), is(time2.hashCode()));
   }
 }

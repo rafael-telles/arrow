@@ -40,27 +40,26 @@ public class ArrowFlightJdbcTime extends Time {
   private static final int DESIRED_MILLIS_LENGTH = 3;
 
   // Millis of the date time object.
-  private final int millisOfSecond;
+  private final int millisReprValue;
 
   /**
    * Constructs this object based on epoch millis.
    *
    * @param milliseconds milliseconds representing Time.
    */
-  public ArrowFlightJdbcTime(long milliseconds) {
+  public ArrowFlightJdbcTime(final long milliseconds) {
     super(milliseconds);
-    millisOfSecond = getMillisOfSecond(milliseconds);
+    millisReprValue = getMillisReprValue(milliseconds);
   }
 
   @VisibleForTesting
-  ArrowFlightJdbcTime(LocalTime time) {
+  ArrowFlightJdbcTime(final LocalTime time) {
     // Although the constructor is deprecated, this is the exact same code as Time#valueOf(LocalTime)
     super(time.getHour(), time.getMinute(), time.getSecond());
-    millisOfSecond = time.get(ChronoField.MILLI_OF_SECOND);
+    millisReprValue = time.get(ChronoField.MILLI_OF_SECOND);
   }
 
-  private int getMillisOfSecond(long milliseconds) {
-    final int millisOfSecond;
+  private int getMillisReprValue(long milliseconds) {
     // Extract the millisecond part from epoch nano day
     if (milliseconds > MILLIS_PER_DAY) {
       // Convert to Epoch Day
@@ -69,23 +68,21 @@ public class ArrowFlightJdbcTime extends Time {
       // LocalTime#ofNanoDay only accepts positive values
       milliseconds -= ((milliseconds / MILLIS_PER_DAY) - 1) * MILLIS_PER_DAY;
     }
-    // Stores the milliseconds fraction
-    millisOfSecond = LocalTime.ofNanoOfDay(TimeUnit.MILLISECONDS.toNanos(milliseconds))
+    return LocalTime.ofNanoOfDay(TimeUnit.MILLISECONDS.toNanos(milliseconds))
         .get(ChronoField.MILLI_OF_SECOND);
-    return millisOfSecond;
   }
 
   @Override
   public String toString() {
-    StringBuilder time = new StringBuilder().append(super.toString());
+    final StringBuilder time = new StringBuilder().append(super.toString());
 
-    if (millisOfSecond > 0) {
-      String millisString = Integer.toString(millisOfSecond);
+    if (millisReprValue > 0) {
+      final String millisString = Integer.toString(millisReprValue);
 
       // dot to separate the fractional seconds
       time.append(".");
 
-      int millisLength = millisString.length();
+      final int millisLength = millisString.length();
       if (millisLength < DESIRED_MILLIS_LENGTH) {
         // add necessary leading zeroes
         time.append(LEADING_ZEROES.get(DESIRED_MILLIS_LENGTH - millisLength));
@@ -104,6 +101,6 @@ public class ArrowFlightJdbcTime extends Time {
 
   @Override
   public int hashCode() {
-    return Objects.hash(super.hashCode(), this.millisOfSecond);
+    return Objects.hash(super.hashCode(), this.millisReprValue);
   }
 }
