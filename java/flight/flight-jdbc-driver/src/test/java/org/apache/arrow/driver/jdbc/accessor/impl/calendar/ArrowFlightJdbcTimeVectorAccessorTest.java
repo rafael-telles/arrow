@@ -255,7 +255,7 @@ public class ArrowFlightJdbcTimeVectorAccessorTest {
         Time timeFromVarChar = varCharVectorAccessor.getTime(calendar);
         Time time = accessor.getTime(calendar);
 
-        collector.checkThat(time.toString(), is(timeFromVarChar.toString()));
+        collector.checkThat(time, is(timeFromVarChar));
         collector.checkThat(accessor.wasNull(), is(false));
       });
     }
