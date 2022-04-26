@@ -20,19 +20,17 @@ package org.apache.arrow.driver.jdbc.accessor.impl.calendar;
 import static org.apache.arrow.driver.jdbc.accessor.impl.calendar.ArrowFlightJdbcTimeVectorGetter.Getter;
 import static org.apache.arrow.driver.jdbc.accessor.impl.calendar.ArrowFlightJdbcTimeVectorGetter.Holder;
 import static org.apache.arrow.driver.jdbc.accessor.impl.calendar.ArrowFlightJdbcTimeVectorGetter.createGetter;
-import static org.apache.calcite.avatica.util.DateTimeUtils.MILLIS_PER_DAY;
 
 import java.sql.Time;
 import java.sql.Timestamp;
-import java.time.LocalTime;
 import java.util.Calendar;
-import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 import java.util.function.IntSupplier;
 
 import org.apache.arrow.driver.jdbc.ArrowFlightJdbcTime;
 import org.apache.arrow.driver.jdbc.accessor.ArrowFlightJdbcAccessor;
 import org.apache.arrow.driver.jdbc.accessor.ArrowFlightJdbcAccessorFactory;
+import org.apache.arrow.driver.jdbc.utils.DateTimeUtils;
 import org.apache.arrow.vector.TimeMicroVector;
 import org.apache.arrow.vector.TimeMilliVector;
 import org.apache.arrow.vector.TimeNanoVector;
@@ -44,8 +42,6 @@ import org.apache.arrow.vector.ValueVector;
  * and {@link TimeSecVector}.
  */
 public class ArrowFlightJdbcTimeVectorAccessor extends ArrowFlightJdbcAccessor {
-
-  private static final int ISO_8601_MILLISECOND_LENGTH = 3;
 
   private final Getter getter;
   private final TimeUnit timeUnit;
@@ -129,17 +125,7 @@ public class ArrowFlightJdbcTimeVectorAccessor extends ArrowFlightJdbcAccessor {
     long value = holder.value;
     long milliseconds = this.timeUnit.toMillis(value);
 
-
-    if (calendar != null && calendar.getTimeZone() != TimeZone.getDefault()) {
-      milliseconds -= calendar.getTimeZone().getOffset(milliseconds) - TimeZone.getDefault().getOffset(milliseconds);
-    }
-    if (milliseconds > MILLIS_PER_DAY) {
-      milliseconds %= MILLIS_PER_DAY;
-    } else if (milliseconds < 0) {
-      milliseconds -= ((milliseconds / MILLIS_PER_DAY) - 1) * MILLIS_PER_DAY;
-    }
-
-    return new ArrowFlightJdbcTime(LocalTime.ofNanoOfDay(TimeUnit.MILLISECONDS.toNanos(milliseconds)));
+    return new ArrowFlightJdbcTime(DateTimeUtils.applyCalendarOffset(milliseconds, calendar));
   }
 
   private void fillHolder() {
@@ -155,11 +141,6 @@ public class ArrowFlightJdbcTimeVectorAccessor extends ArrowFlightJdbcAccessor {
       return null;
     }
     return new Timestamp(time.getTime());
-  }
-
-  @Override
-  public String getString() {
-    return getObject().toString();
   }
 
   protected static TimeUnit getTimeUnitForVector(ValueVector vector) {

@@ -60,4 +60,14 @@ public class ArrowFlightJdbcTimeTest {
     Assert.assertEquals(time.getMinutes(), minute);
     Assert.assertEquals(time.getSeconds(), second);
   }
+
+  @Test
+  public void testEquality() {
+    // tests #equals and #hashCode for coverage checks
+    LocalTime dateTime = LocalTime.of(hour, minute, second, (int) TimeUnit.MILLISECONDS.toNanos(1));
+    ArrowFlightJdbcTime time1 = new ArrowFlightJdbcTime(dateTime);
+    ArrowFlightJdbcTime time2 = new ArrowFlightJdbcTime(dateTime);
+    Assert.assertEquals(time1, time2);
+    Assert.assertEquals(time1.hashCode(), time2.hashCode());
+  }
 }

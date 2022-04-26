@@ -17,16 +17,21 @@
 
 package org.apache.arrow.driver.jdbc;
 
+import static org.apache.calcite.avatica.util.DateTimeUtils.MILLIS_PER_DAY;
+
 import java.sql.Time;
 import java.time.LocalTime;
 import java.time.temporal.ChronoField;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
+
+import org.apache.arrow.util.VisibleForTesting;
 
 import com.google.common.collect.ImmutableList;
 
 /**
- * Wrapper class for Time objects to include the milliseconds part in ISO 8601 format in its #toString.
+ * Wrapper class for Time objects to include the milliseconds part in ISO 8601 format in this#toString.
  */
 public class ArrowFlightJdbcTime extends Time {
   private static final List<String> LEADING_ZEROES = ImmutableList.of("", "0", "00");
@@ -38,14 +43,36 @@ public class ArrowFlightJdbcTime extends Time {
   private final int millisOfSecond;
 
   /**
-   * Constructs this object based on a {@link LocalTime} object.
+   * Constructs this object based on epoch millis.
    *
-   * @param time a {@link java.time.LocalDateTime} representing a {@link Time} object.
+   * @param milliseconds milliseconds representing Time.
    */
-  public ArrowFlightJdbcTime(LocalTime time) {
+  public ArrowFlightJdbcTime(long milliseconds) {
+    super(milliseconds);
+    millisOfSecond = getMillisOfSecond(milliseconds);
+  }
+
+  @VisibleForTesting
+  ArrowFlightJdbcTime(LocalTime time) {
     // Although the constructor is deprecated, this is the exact same code as Time#valueOf(LocalTime)
     super(time.getHour(), time.getMinute(), time.getSecond());
     millisOfSecond = time.get(ChronoField.MILLI_OF_SECOND);
+  }
+
+  private int getMillisOfSecond(long milliseconds) {
+    final int millisOfSecond;
+    // Extract the millisecond part from epoch nano day
+    if (milliseconds > MILLIS_PER_DAY) {
+      // Convert to Epoch Day
+      milliseconds %= MILLIS_PER_DAY;
+    } else if (milliseconds < 0) {
+      // LocalTime#ofNanoDay only accepts positive values
+      milliseconds -= ((milliseconds / MILLIS_PER_DAY) - 1) * MILLIS_PER_DAY;
+    }
+    // Stores the milliseconds fraction
+    millisOfSecond = LocalTime.ofNanoOfDay(TimeUnit.MILLISECONDS.toNanos(milliseconds))
+        .get(ChronoField.MILLI_OF_SECOND);
+    return millisOfSecond;
   }
 
   @Override
@@ -72,10 +99,7 @@ public class ArrowFlightJdbcTime extends Time {
   // Spotbugs requires these methods to be overridden
   @Override
   public boolean equals(Object obj) {
-    if ((obj instanceof ArrowFlightJdbcTime) && super.equals(obj)) {
-      return this.millisOfSecond == ((ArrowFlightJdbcTime) obj).millisOfSecond;
-    }
-    return false;
+    return super.equals(obj);
   }
 
   @Override

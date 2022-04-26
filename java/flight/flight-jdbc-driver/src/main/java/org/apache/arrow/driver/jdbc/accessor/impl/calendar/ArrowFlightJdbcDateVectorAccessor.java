@@ -25,6 +25,9 @@ import static org.apache.calcite.avatica.util.DateTimeUtils.unixDateToString;
 
 import java.sql.Date;
 import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.Calendar;
 import java.util.concurrent.TimeUnit;
 import java.util.function.IntSupplier;
@@ -94,7 +97,23 @@ public class ArrowFlightJdbcDateVectorAccessor extends ArrowFlightJdbcAccessor {
     long value = holder.value;
     long milliseconds = this.timeUnit.toMillis(value);
 
-    return new Date(DateTimeUtils.applyCalendarOffset(milliseconds, calendar));
+    long millisWithCalendar = DateTimeUtils.applyCalendarOffset(milliseconds, calendar);
+
+    return new Date(getTimestampValue(millisWithCalendar).getTime());
+  }
+
+  private Timestamp getTimestampValue(long millisWithCalendar) {
+    long milliseconds = millisWithCalendar;
+    if (milliseconds < 0) {
+      // LocalTime#ofNanoDay only accepts positive values
+      milliseconds -= ((milliseconds / MILLIS_PER_DAY) - 1) * MILLIS_PER_DAY;
+    }
+
+    return Timestamp.valueOf(
+        LocalDateTime.of(
+            LocalDate.ofEpochDay(millisWithCalendar / MILLIS_PER_DAY),
+            LocalTime.ofNanoOfDay(TimeUnit.MILLISECONDS.toNanos(milliseconds % MILLIS_PER_DAY)))
+    );
   }
 
   private void fillHolder() {

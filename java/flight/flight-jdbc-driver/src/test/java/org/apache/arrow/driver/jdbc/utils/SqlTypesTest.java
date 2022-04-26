@@ -65,7 +65,8 @@ public class SqlTypesTest {
     assertEquals(Types.ARRAY, getSqlTypeIdFromArrowType(new ArrowType.LargeList()));
     assertEquals(Types.ARRAY, getSqlTypeIdFromArrowType(new ArrowType.FixedSizeList(10)));
 
-    assertEquals(Types.JAVA_OBJECT, getSqlTypeIdFromArrowType(new ArrowType.Struct()));
+    assertEquals(Types.STRUCT, getSqlTypeIdFromArrowType(new ArrowType.Struct()));
+
     assertEquals(Types.JAVA_OBJECT,
         getSqlTypeIdFromArrowType(new ArrowType.Duration(TimeUnit.MILLISECOND)));
     assertEquals(Types.JAVA_OBJECT,
@@ -108,7 +109,7 @@ public class SqlTypesTest {
     assertEquals("ARRAY", getSqlTypeNameFromArrowType(new ArrowType.LargeList()));
     assertEquals("ARRAY", getSqlTypeNameFromArrowType(new ArrowType.FixedSizeList(10)));
 
-    assertEquals("JAVA_OBJECT", getSqlTypeNameFromArrowType(new ArrowType.Struct()));
+    assertEquals("STRUCT", getSqlTypeNameFromArrowType(new ArrowType.Struct()));
 
     assertEquals("JAVA_OBJECT",
         getSqlTypeNameFromArrowType(new ArrowType.Duration(TimeUnit.MILLISECOND)));
