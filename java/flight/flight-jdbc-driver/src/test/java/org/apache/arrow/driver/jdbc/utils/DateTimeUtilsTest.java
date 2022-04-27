@@ -32,14 +32,16 @@ public class DateTimeUtilsTest {
 
   @ClassRule
   public static final ErrorCollector collector = new ErrorCollector();
-  private static final TimeZone defaultTimezone = TimeZone.getTimeZone("UTC");
-  private static final TimeZone alternateTimezone = TimeZone.getTimeZone("America/Vancouver");
+  private final TimeZone defaultTimezone = TimeZone.getTimeZone("UTC");
+  private final TimeZone alternateTimezone = TimeZone.getTimeZone("America/Vancouver");
+  private final long positiveEpochMilli = 959817600000L; // 2000-06-01 00:00:00 UTC
+  private final long negativeEpochMilli = -618105600000L; // 1950-06-01 00:00:00 UTC
 
   @Test
   public void testShouldGetOffsetWithSameTimeZone() {
     final TimeZone currentTimezone = TimeZone.getDefault();
 
-    final long epochMillis = Instant.now().toEpochMilli();
+    final long epochMillis = positiveEpochMilli;
     final long offset = defaultTimezone.getOffset(epochMillis);
 
     TimeZone.setDefault(defaultTimezone);
@@ -59,7 +61,7 @@ public class DateTimeUtilsTest {
   public void testShouldGetOffsetWithDifferentTimeZone() {
     final TimeZone currentTimezone = TimeZone.getDefault();
 
-    final long epochMillis = Instant.now().toEpochMilli();
+    final long epochMillis = negativeEpochMilli;
     final long offset = alternateTimezone.getOffset(epochMillis);
 
     TimeZone.setDefault(alternateTimezone);
@@ -78,8 +80,8 @@ public class DateTimeUtilsTest {
 
   @Test
   public void testShouldGetTimestampPositive() {
-    final Instant instant = Instant.now();
-    long epochMilli = instant.toEpochMilli();
+    long epochMilli = positiveEpochMilli;
+    final Instant instant = Instant.ofEpochMilli(epochMilli);
 
     final Timestamp expected = Timestamp.from(instant);
     final Timestamp actual = DateTimeUtils.getTimestampValue(epochMilli);
@@ -89,7 +91,7 @@ public class DateTimeUtilsTest {
 
   @Test
   public void testShouldGetTimestampNegative() {
-    final long epochMilli = -618105600000L; // 1950-06-01 00:00:00 UTC
+    final long epochMilli = negativeEpochMilli;
     final Instant instant = Instant.ofEpochMilli(epochMilli);
 
     final Timestamp expected = Timestamp.from(instant);
