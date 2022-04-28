@@ -29,6 +29,8 @@ import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.calcite.avatica.AvaticaPreparedStatement;
 import org.apache.calcite.avatica.Meta.Signature;
 import org.apache.calcite.avatica.Meta.StatementHandle;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 /**
@@ -38,6 +40,7 @@ public class ArrowFlightPreparedStatement extends AvaticaPreparedStatement
     implements ArrowFlightInfoStatement {
 
   private final ArrowFlightSqlClientHandler.PreparedStatement preparedStatement;
+  private static final Logger logger = LoggerFactory.getLogger(ArrowFlightPreparedStatement.class);
 
   private ArrowFlightPreparedStatement(final ArrowFlightConnection connection,
                                        final ArrowFlightSqlClientHandler.PreparedStatement preparedStatement,
@@ -93,6 +96,10 @@ public class ArrowFlightPreparedStatement extends AvaticaPreparedStatement
 
   @Override
   public FlightInfo executeFlightInfoQuery() throws SQLException {
+    logger.info("Running PreparedStatement of Connection {} [Thread Id {}]",
+        connection.id,
+        Thread.currentThread().getId());
+
     return preparedStatement.executeQuery();
   }
 }
