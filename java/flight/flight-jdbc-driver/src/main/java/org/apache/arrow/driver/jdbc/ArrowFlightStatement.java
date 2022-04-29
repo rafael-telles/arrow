@@ -18,6 +18,7 @@
 package org.apache.arrow.driver.jdbc;
 
 import java.sql.SQLException;
+import java.time.LocalDateTime;
 
 import org.apache.arrow.driver.jdbc.client.ArrowFlightSqlClientHandler.PreparedStatement;
 import org.apache.arrow.driver.jdbc.utils.ConvertUtils;
@@ -26,15 +27,11 @@ import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.calcite.avatica.AvaticaStatement;
 import org.apache.calcite.avatica.Meta;
 import org.apache.calcite.avatica.Meta.StatementHandle;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * A SQL statement for querying data from an Arrow Flight server.
  */
 public class ArrowFlightStatement extends AvaticaStatement implements ArrowFlightInfoStatement {
-
-  private static final Logger logger = LoggerFactory.getLogger(ArrowFlightStatement.class);
 
   ArrowFlightStatement(final ArrowFlightConnection connection,
                        final StatementHandle handle, final int resultSetType,
@@ -59,7 +56,8 @@ public class ArrowFlightStatement extends AvaticaStatement implements ArrowFligh
     signature.columns.addAll(ConvertUtils.convertArrowFieldsToColumnMetaDataList(resultSetSchema.getFields()));
     setSignature(signature);
 
-    logger.info("Running Statement of Connection {} [Thread Id {}]",
+    System.out.printf("[%s] Running Statement of Connection %s [Thread Id %s]",
+        LocalDateTime.now(),
         connection.id,
         Thread.currentThread().getId());
 
