@@ -57,13 +57,9 @@ public class ArrowFlightJdbcIntervalVectorAccessor extends ArrowFlightJdbcAccess
     stringGetter = (index) -> {
       final NullableIntervalDayHolder holder = new NullableIntervalDayHolder();
       vector.get(index, holder);
-      if (holder.isSet == 0) {
-        return null;
-      } else {
-        final int days = holder.days;
-        final int millis = holder.milliseconds;
-        return formatIntervalDay(new Period().plusDays(days).plusMillis(millis));
-      }
+      final int days = holder.days;
+      final int millis = holder.milliseconds;
+      return formatIntervalDay(new Period().plusDays(days).plusMillis(millis));
     };
     objectClass = java.time.Duration.class;
   }
@@ -83,14 +79,10 @@ public class ArrowFlightJdbcIntervalVectorAccessor extends ArrowFlightJdbcAccess
     stringGetter = (index) -> {
       final NullableIntervalYearHolder holder = new NullableIntervalYearHolder();
       vector.get(index, holder);
-      if (holder.isSet == 0) {
-        return null;
-      } else {
-        final int interval = holder.value;
-        final int years = (interval / yearsToMonths);
-        final int months = (interval % yearsToMonths);
-        return formatIntervalYear(new Period().plusYears(years).plusMonths(months));
-      }
+      final int interval = holder.value;
+      final int years = (interval / yearsToMonths);
+      final int months = (interval % yearsToMonths);
+      return formatIntervalYear(new Period().plusYears(years).plusMonths(months));
     };
     objectClass = java.time.Period.class;
   }
@@ -102,18 +94,22 @@ public class ArrowFlightJdbcIntervalVectorAccessor extends ArrowFlightJdbcAccess
 
   @Override
   public String getString() throws SQLException {
-    String result = stringGetter.get(getCurrentRow());
-    wasNull = result == null;
-    wasNullConsumer.setWasNull(wasNull);
-    return result;
+    if (vector.isNull(getCurrentRow())) {
+      wasNull = true;
+      wasNullConsumer.setWasNull(true);
+      return null;
+    }
+    return stringGetter.get(getCurrentRow());
   }
 
   @Override
   public Object getObject() {
-    Object object = vector.getObject(getCurrentRow());
-    wasNull = object == null;
-    wasNullConsumer.setWasNull(wasNull);
-    return object;
+    if (vector.isNull(getCurrentRow())) {
+      wasNull = true;
+      wasNullConsumer.setWasNull(true);
+      return null;
+    }
+    return vector.getObject(getCurrentRow());
   }
 
   /**
