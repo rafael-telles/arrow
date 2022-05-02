@@ -94,7 +94,7 @@ public class ArrowFlightPreparedStatement extends AvaticaPreparedStatement
 
   @Override
   public FlightInfo executeFlightInfoQuery() throws SQLException {
-    System.out.printf("[%s] Running Statement of Connection %s [Thread Id %s]",
+    System.out.printf("[%s] Running Statement of Connection %s [Thread Id %s]\n",
         LocalDateTime.now(),
         connection.id,
         Thread.currentThread().getId());

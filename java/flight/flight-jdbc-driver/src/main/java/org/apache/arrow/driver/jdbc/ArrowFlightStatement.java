@@ -56,7 +56,7 @@ public class ArrowFlightStatement extends AvaticaStatement implements ArrowFligh
     signature.columns.addAll(ConvertUtils.convertArrowFieldsToColumnMetaDataList(resultSetSchema.getFields()));
     setSignature(signature);
 
-    System.out.printf("[%s] Running Statement of Connection %s [Thread Id %s]",
+    System.out.printf("[%s] Running Statement of Connection %s [Thread Id %s]\n",
         LocalDateTime.now(),
         connection.id,
         Thread.currentThread().getId());
