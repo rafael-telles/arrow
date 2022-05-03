@@ -50,12 +50,18 @@ public class ArrowFlightJdbcUnionVectorAccessor extends AbstractArrowFlightJdbcU
 
   @Override
   protected ArrowFlightJdbcAccessor createAccessorForVector(ValueVector vector) {
-    return ArrowFlightJdbcAccessorFactory.createAccessor(vector, this::getCurrentRow, (boolean wasNull) -> {});
+    return ArrowFlightJdbcAccessorFactory.createAccessor(vector, this::getCurrentRow, (boolean wasNull) -> {
+    });
   }
 
   @Override
   protected byte getCurrentTypeId() {
     return (byte) vector.getTypeValue(getCurrentRow());
+  }
+
+  @Override
+  protected ValueVector getVectorByTypeId(byte typeId) {
+    return vector.getVectorByType(typeId);
   }
 
   @Override
@@ -78,13 +84,10 @@ public class ArrowFlightJdbcUnionVectorAccessor extends AbstractArrowFlightJdbcU
 
   @Override
   public Object getObject() throws SQLException {
-    if (isNull()) return null;
+    if (isNull()) {
+      return null;
+    }
     reader.setPosition(getCurrentRow());
     return reader.readObject();
-  }
-
-  @Override
-  protected ValueVector getVectorByTypeId(byte typeId) {
-    return vector.getVectorByType(typeId);
   }
 }
