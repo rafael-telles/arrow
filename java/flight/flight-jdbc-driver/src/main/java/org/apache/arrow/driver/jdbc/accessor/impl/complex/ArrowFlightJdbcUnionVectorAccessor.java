@@ -17,12 +17,14 @@
 
 package org.apache.arrow.driver.jdbc.accessor.impl.complex;
 
+import java.sql.SQLException;
 import java.util.function.IntSupplier;
 
 import org.apache.arrow.driver.jdbc.accessor.ArrowFlightJdbcAccessor;
 import org.apache.arrow.driver.jdbc.accessor.ArrowFlightJdbcAccessorFactory;
 import org.apache.arrow.vector.ValueVector;
 import org.apache.arrow.vector.complex.UnionVector;
+import org.apache.arrow.vector.complex.reader.FieldReader;
 
 /**
  * Accessor for the Arrow type {@link UnionVector}.
@@ -30,6 +32,7 @@ import org.apache.arrow.vector.complex.UnionVector;
 public class ArrowFlightJdbcUnionVectorAccessor extends AbstractArrowFlightJdbcUnionVectorAccessor {
 
   private final UnionVector vector;
+  private final FieldReader reader;
 
   /**
    * Instantiate an accessor for a {@link UnionVector}.
@@ -42,23 +45,46 @@ public class ArrowFlightJdbcUnionVectorAccessor extends AbstractArrowFlightJdbcU
                                             ArrowFlightJdbcAccessorFactory.WasNullConsumer setCursorWasNull) {
     super(currentRowSupplier, setCursorWasNull);
     this.vector = vector;
+    this.reader = vector.getReader();
   }
 
   @Override
   protected ArrowFlightJdbcAccessor createAccessorForVector(ValueVector vector) {
-    return ArrowFlightJdbcAccessorFactory.createAccessor(vector, this::getCurrentRow,
-        (boolean wasNull) -> {
-        });
+    return ArrowFlightJdbcAccessorFactory.createAccessor(vector, this::getCurrentRow, (boolean wasNull) -> {});
   }
 
   @Override
   protected byte getCurrentTypeId() {
-    int index = getCurrentRow();
-    return (byte) this.vector.getTypeValue(index);
+    return (byte) vector.getTypeValue(getCurrentRow());
+  }
+
+  @Override
+  public byte[] getBytes() throws SQLException {
+    if (isNull()) {
+      return null;
+    }
+    reader.setPosition(getCurrentRow());
+    return reader.readByteArray();
+  }
+
+  private boolean isNull() {
+    if (vector.isNull(getCurrentRow())) {
+      wasNull = true;
+      wasNullConsumer.setWasNull(true);
+      return true;
+    }
+    return false;
+  }
+
+  @Override
+  public Object getObject() throws SQLException {
+    if (isNull()) return null;
+    reader.setPosition(getCurrentRow());
+    return reader.readObject();
   }
 
   @Override
   protected ValueVector getVectorByTypeId(byte typeId) {
-    return this.vector.getVectorByType(typeId);
+    return vector.getVectorByType(typeId);
   }
 }
