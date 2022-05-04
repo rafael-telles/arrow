@@ -94,9 +94,11 @@ public class ArrowFlightJdbcIntervalVectorAccessor extends ArrowFlightJdbcAccess
 
   @Override
   public String getString() throws SQLException {
-    if (vector.isNull(getCurrentRow())) {
-      wasNull = true;
-      wasNullConsumer.setWasNull(true);
+    boolean isNull = vector.isNull(getCurrentRow());
+    wasNull = isNull;
+    wasNullConsumer.setWasNull(isNull);
+
+    if (isNull) {
       return null;
     }
     return stringGetter.get(getCurrentRow());
@@ -104,16 +106,18 @@ public class ArrowFlightJdbcIntervalVectorAccessor extends ArrowFlightJdbcAccess
 
   @Override
   public Object getObject() {
-    if (vector.isNull(getCurrentRow())) {
-      wasNull = true;
-      wasNullConsumer.setWasNull(true);
+    boolean isNull = vector.isNull(getCurrentRow());
+    wasNull = isNull;
+    wasNullConsumer.setWasNull(isNull);
+
+    if (isNull) {
       return null;
     }
     return vector.getObject(getCurrentRow());
   }
 
   /**
-   * Functional interface used to unify Interval*Vector#getAsStringBuilder implementations.
+   * Functional interface used to unify Interval*Vector#get(int, NullableInterval*Holder) implementations.
    */
   @FunctionalInterface
   interface StringGetter {
