@@ -57,9 +57,13 @@ public class ArrowFlightJdbcIntervalVectorAccessor extends ArrowFlightJdbcAccess
     stringGetter = (index) -> {
       final NullableIntervalDayHolder holder = new NullableIntervalDayHolder();
       vector.get(index, holder);
-      final int days = holder.days;
-      final int millis = holder.milliseconds;
-      return formatIntervalDay(new Period().plusDays(days).plusMillis(millis));
+      if (holder.isSet == 0) {
+        return null;
+      } else {
+        final int days = holder.days;
+        final int millis = holder.milliseconds;
+        return formatIntervalDay(new Period().plusDays(days).plusMillis(millis));
+      }
     };
     objectClass = java.time.Duration.class;
   }
@@ -79,10 +83,14 @@ public class ArrowFlightJdbcIntervalVectorAccessor extends ArrowFlightJdbcAccess
     stringGetter = (index) -> {
       final NullableIntervalYearHolder holder = new NullableIntervalYearHolder();
       vector.get(index, holder);
-      final int interval = holder.value;
-      final int years = (interval / yearsToMonths);
-      final int months = (interval % yearsToMonths);
-      return formatIntervalYear(new Period().plusYears(years).plusMonths(months));
+      if (holder.isSet == 0) {
+        return null;
+      } else {
+        final int interval = holder.value;
+        final int years = (interval / yearsToMonths);
+        final int months = (interval % yearsToMonths);
+        return formatIntervalYear(new Period().plusYears(years).plusMonths(months));
+      }
     };
     objectClass = java.time.Period.class;
   }
@@ -94,30 +102,22 @@ public class ArrowFlightJdbcIntervalVectorAccessor extends ArrowFlightJdbcAccess
 
   @Override
   public String getString() throws SQLException {
-    boolean isNull = vector.isNull(getCurrentRow());
-    wasNull = isNull;
-    wasNullConsumer.setWasNull(isNull);
-
-    if (isNull) {
-      return null;
-    }
-    return stringGetter.get(getCurrentRow());
+    String result = stringGetter.get(getCurrentRow());
+    wasNull = result == null;
+    wasNullConsumer.setWasNull(wasNull);
+    return result;
   }
 
   @Override
   public Object getObject() {
-    boolean isNull = vector.isNull(getCurrentRow());
-    wasNull = isNull;
-    wasNullConsumer.setWasNull(isNull);
-
-    if (isNull) {
-      return null;
-    }
-    return vector.getObject(getCurrentRow());
+    Object object = vector.getObject(getCurrentRow());
+    wasNull = object == null;
+    wasNullConsumer.setWasNull(wasNull);
+    return object;
   }
 
   /**
-   * Functional interface used to unify Interval*Vector#get(int, NullableInterval*Holder) implementations.
+   * Functional interface used to unify Interval*Vector#getAsStringBuilder implementations.
    */
   @FunctionalInterface
   interface StringGetter {
