@@ -17,16 +17,12 @@
 
 package org.apache.arrow.driver.jdbc;
 
-import static org.junit.Assert.assertEquals;
-
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.sql.Connection;
-import java.sql.Driver;
-import java.sql.DriverManager;
-import java.sql.SQLException;
+import java.sql.*;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Properties;
 
 import org.apache.arrow.driver.jdbc.authentication.UserPasswordAuthentication;
 import org.apache.arrow.driver.jdbc.utils.ArrowFlightConnectionConfigImpl.ArrowFlightConnectionProperty;
@@ -39,6 +35,8 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Ignore;
 import org.junit.Test;
+
+import static org.junit.Assert.*;
 
 /**
  * Tests for {@link ArrowFlightJdbcDriver}.
@@ -72,6 +70,21 @@ public class ArrowFlightJdbcDriverTest {
     Collection<BufferAllocator> childAllocators = allocator.getChildAllocators();
     AutoCloseables.close(childAllocators.toArray(new AutoCloseable[0]));
     AutoCloseables.close(dataSource, allocator);
+  }
+
+  @Test
+  public void testBallista() throws Exception {
+    String url = "jdbc:arrow-flight://localhost:50050";
+    Properties props = new Properties();
+    props.setProperty("useEncryption", "false");
+    Connection con = DriverManager.getConnection(url, props);
+    Statement stmt = con.createStatement();
+    boolean result = stmt.execute("SELECT 'keep alive'");
+    assertEquals(result, true);
+    ResultSet rs = stmt.getResultSet();
+    assertEquals(rs.next(), true);
+    String res = rs.getString(1);
+    assertEquals(res, "keep alive");
   }
 
   /**
