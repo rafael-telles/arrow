@@ -17,14 +17,7 @@
 
 package org.apache.arrow.driver.jdbc.client;
 
-import java.io.IOException;
-import java.security.GeneralSecurityException;
-import java.sql.SQLException;
-import java.util.*;
-import java.util.stream.Collectors;
-
 import org.apache.arrow.driver.jdbc.client.utils.ClientAuthenticationUtils;
-import org.apache.arrow.driver.jdbc.utils.ArrowFlightConnectionConfigImpl;
 import org.apache.arrow.flight.*;
 import org.apache.arrow.flight.auth2.BearerCredentialWriter;
 import org.apache.arrow.flight.auth2.ClientBearerHeaderHandler;
@@ -35,38 +28,48 @@ import org.apache.arrow.flight.sql.FlightSqlClient;
 import org.apache.arrow.flight.sql.impl.FlightSql.SqlInfo;
 import org.apache.arrow.flight.sql.util.TableRef;
 import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.util.AutoCloseables;
 import org.apache.arrow.util.Preconditions;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.calcite.avatica.Meta.StatementType;
+
+import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.security.GeneralSecurityException;
+import java.sql.SQLException;
+import java.util.*;
+
+import static org.apache.arrow.flight.LocationSchemes.GRPC_INSECURE;
+import static org.apache.arrow.flight.LocationSchemes.GRPC_TLS;
 
 /**
  * A {@link FlightSqlClient} handler.
  */
 public final class ArrowFlightSqlClientHandler implements AutoCloseable {
 
+  ConnectionManager connectionManager;
   private final FlightSqlClient sqlClient;
-  private final ArrowFlightConnectionConfigImpl config;
   private final Set<CallOption> options = new HashSet<>();
 
-  ArrowFlightSqlClientHandler(final FlightSqlClient sqlClient,
-                              final ArrowFlightConnectionConfigImpl config) {
-    this.config = config;
-    this.options.add(config.toCallOption());
+  ArrowFlightSqlClientHandler(final ConnectionManager connectionManager,
+                              final Collection<CallOption> options) throws SQLException {
+    this.connectionManager = Preconditions.checkNotNull(connectionManager);
+    this.options.addAll(options);
+    FlightSqlClient sqlClient = connectionManager.getConnection(null);
     this.sqlClient = Preconditions.checkNotNull(sqlClient);
   }
 
   /**
    * Creates a new {@link ArrowFlightSqlClientHandler} from the provided {@code client} and {@code options}.
    *
-   * @param client  the {@link FlightClient} to manage under a {@link FlightSqlClient} wrapper.
+   * @param connectionManager the {@link ConnectionManager} to manage {@link FlightSqlClient} connections.
    * @param options the {@link CallOption}s to persist in between subsequent client calls.
    * @return a new {@link ArrowFlightSqlClientHandler}.
    */
-  public static ArrowFlightSqlClientHandler createNewHandler(final FlightClient client,
-                                                             final ArrowFlightConnectionConfigImpl config) {
-    return new ArrowFlightSqlClientHandler(new FlightSqlClient(client), config);
+  public static ArrowFlightSqlClientHandler createNewHandler(final ConnectionManager connectionManager,
+                                                             final Collection<CallOption> options) throws SQLException {
+    return new ArrowFlightSqlClientHandler(connectionManager, options);
   }
 
   /**
@@ -89,21 +92,9 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
     try {
       ArrayList<FlightStream> streams = new ArrayList<>();
       for (FlightEndpoint ep : flightInfo.getEndpoints()) {
-        for (Location loc : ep.getLocations()) {
-          if (
-                  this.config.getHost().equals(loc.getUri().getHost())
-                  && this.config.getPort() == loc.getUri().getPort()
-          ) {
-            streams.add(sqlClient.getStream(ep.getTicket(), getOptions()));
-          } else {
-            RootAllocator allocator = new RootAllocator();
-            FlightClient client = FlightClient.builder()
-                    .allocator(allocator)
-                    .location(loc)
-                    .build();
-            streams.add(client.getStream(ep.getTicket(), getOptions()));
-          }
-        }
+        URI uri = ep.getLocations().size() > 0 ? ep.getLocations().get(0).getUri() : null;
+        FlightSqlClient sqlClient = this.connectionManager.getConnection(uri);
+        streams.add(sqlClient.getStream(ep.getTicket(), getOptions()));
       }
       return streams;
     } catch (Exception ex) {
@@ -125,7 +116,7 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
   @Override
   public void close() throws SQLException {
     try {
-      AutoCloseables.close(sqlClient);
+      AutoCloseables.close(connectionManager);
     } catch (final Exception e) {
       throw new SQLException("Failed to clean up client resources.", e);
     }
@@ -345,23 +336,138 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
   }
 
   /**
+   * Manager of {@link FlightSqlClient} connections for {@link ArrowFlightSqlClientHandler}.
+   */
+  static class ConnectionManager implements AutoCloseable {
+    private final Map<URI, FlightSqlClient> connections = new HashMap<>();
+    private final Config config;
+
+    public ConnectionManager(Config config) {
+      this.config = config;
+    }
+
+    /**
+     * Gets (or creates) a {@link FlightSqlClient} for a given URI.
+     *
+     * @param uri the endpoint for which a connection should be established
+     * @return the {@link FlightSqlClient} connection
+     */
+    public FlightSqlClient getConnection(URI uri) throws SQLException {
+      FlightClient client = null;
+      try {
+        // Use default parameters if no URI provided
+        if (uri == null) {
+          String scheme = config.useEncryption ? GRPC_TLS : GRPC_INSECURE;
+          uri = new URI(String.format("%s://%s:%d", scheme, config.host, config.port));
+        }
+
+        // Return an existing connection if one exists
+        if (connections.containsKey(uri)) {
+          return connections.get(uri);
+        }
+
+        // Create a new connection and add it to the map
+        String host = uri.getHost();
+        int port = uri.getPort();
+        boolean useEncryption = GRPC_TLS.equals(uri.getScheme());
+        ClientIncomingAuthHeaderMiddleware.Factory authFactory = null;
+        if (config.username != null) {
+          authFactory =
+              new ClientIncomingAuthHeaderMiddleware.Factory(new ClientBearerHeaderHandler());
+          if(connections.isEmpty()) {
+            config.middlewareFactories.add(authFactory); // Only add once
+          }
+        }
+        final FlightClient.Builder clientBuilder = FlightClient.builder().allocator(config.allocator);
+        if(connections.isEmpty()) {
+          config.middlewareFactories.add(new ClientCookieMiddleware.Factory()); // Only add once
+        }
+        config.middlewareFactories.forEach(clientBuilder::intercept);
+        Location location;
+        if (useEncryption) {
+          location = Location.forGrpcTls(host, port);
+          clientBuilder.useTls();
+        } else {
+          location = Location.forGrpcInsecure(host, port);
+        }
+        clientBuilder.location(location);
+
+        if (useEncryption) {
+          if (config.disableCertificateVerification) {
+            clientBuilder.verifyServer(false);
+          } else {
+            if (config.useSystemTrustStore) {
+              clientBuilder.trustedCertificates(
+                  ClientAuthenticationUtils.getCertificateInputStreamFromSystem(config.trustStorePassword));
+            } else if (config.trustStorePath != null) {
+              clientBuilder.trustedCertificates(
+                  ClientAuthenticationUtils.getCertificateStream(config.trustStorePath, config.trustStorePassword));
+            }
+          }
+        }
+
+        client = clientBuilder.build();
+        if (authFactory != null) {
+          config.options.add(
+              ClientAuthenticationUtils.getAuthenticate(client, config.username, config.password, authFactory));
+        } else if (config.token != null) {
+          config.options.add(
+              ClientAuthenticationUtils.getAuthenticate(
+                  client, new CredentialCallOption(new BearerCredentialWriter(config.token))));
+        }
+
+        // Create the SQL client, add it to the map, return it
+        FlightSqlClient sqlClient = new FlightSqlClient(client);
+        connections.put(uri, sqlClient);
+        return sqlClient;
+      } catch (final IllegalArgumentException | GeneralSecurityException | IOException | FlightRuntimeException |
+                     URISyntaxException e) {
+        final SQLException originalException = new SQLException(e);
+        if (client != null) {
+          try {
+            client.close();
+          } catch (final InterruptedException interruptedException) {
+            originalException.addSuppressed(interruptedException);
+          }
+        }
+        throw originalException;
+      }
+    }
+
+    @Override
+    public void close() throws Exception {
+      for(FlightSqlClient it : connections.values()) {
+        AutoCloseables.close(it);
+      }
+      connections.clear();
+    }
+  }
+
+  /**
+   * Config options shared by both the {@link ArrowFlightSqlClientHandler.Builder}
+   * and the {@link ArrowFlightSqlClientHandler.ConnectionManager}.
+   */
+  static class Config {
+    protected final Set<FlightClientMiddleware.Factory> middlewareFactories = new HashSet<>();
+    protected final Set<CallOption> options = new HashSet<>();
+    protected String host;
+    protected int port;
+    protected String username;
+    protected String password;
+    protected String trustStorePath;
+    protected String trustStorePassword;
+    protected String token;
+    protected boolean useEncryption;
+    protected boolean disableCertificateVerification;
+    protected boolean useSystemTrustStore;
+    protected BufferAllocator allocator;
+  }
+
+  /**
    * Builder for {@link ArrowFlightSqlClientHandler}.
    */
   public static final class Builder {
-    private final Set<FlightClientMiddleware.Factory> middlewareFactories = new HashSet<>();
-    private ArrowFlightConnectionConfigImpl config;
-    private final Set<CallOption> options = new HashSet<>();
-    private String host;
-    private int port;
-    private String username;
-    private String password;
-    private String trustStorePath;
-    private String trustStorePassword;
-    private String token;
-    private boolean useEncryption;
-    private boolean disableCertificateVerification;
-    private boolean useSystemTrustStore;
-    private BufferAllocator allocator;
+    private final Config config = new Config();
 
     /**
      * Sets the host for this handler.
@@ -370,7 +476,7 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
      * @return this instance.
      */
     public Builder withHost(final String host) {
-      this.host = host;
+      this.config.host = host;
       return this;
     }
 
@@ -381,7 +487,7 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
      * @return this instance.
      */
     public Builder withPort(final int port) {
-      this.port = port;
+      this.config.port = port;
       return this;
     }
 
@@ -392,7 +498,7 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
      * @return this instance.
      */
     public Builder withUsername(final String username) {
-      this.username = username;
+      this.config.username = username;
       return this;
     }
 
@@ -403,7 +509,7 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
      * @return this instance.
      */
     public Builder withPassword(final String password) {
-      this.password = password;
+      this.config.password = password;
       return this;
     }
 
@@ -414,7 +520,7 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
      * @return this instance.
      */
     public Builder withTrustStorePath(final String trustStorePath) {
-      this.trustStorePath = trustStorePath;
+      this.config.trustStorePath = trustStorePath;
       return this;
     }
 
@@ -425,7 +531,7 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
      * @return this instance.
      */
     public Builder withTrustStorePassword(final String trustStorePassword) {
-      this.trustStorePassword = trustStorePassword;
+      this.config.trustStorePassword = trustStorePassword;
       return this;
     }
 
@@ -436,7 +542,7 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
      * @return this instance.
      */
     public Builder withEncryption(final boolean useEncryption) {
-      this.useEncryption = useEncryption;
+      this.config.useEncryption = useEncryption;
       return this;
     }
 
@@ -447,7 +553,7 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
      * @return this instance.
      */
     public Builder withDisableCertificateVerification(final boolean disableCertificateVerification) {
-      this.disableCertificateVerification = disableCertificateVerification;
+      this.config.disableCertificateVerification = disableCertificateVerification;
       return this;
     }
 
@@ -458,7 +564,7 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
      * @return this instance.
      */
     public Builder withSystemTrustStore(final boolean useSystemTrustStore) {
-      this.useSystemTrustStore = useSystemTrustStore;
+      this.config.useSystemTrustStore = useSystemTrustStore;
       return this;
     }
 
@@ -468,7 +574,7 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
      * @return      this builder instance.
      */
     public Builder withToken(final String token) {
-      this.token = token;
+      this.config.token = token;
       return this;
     }
 
@@ -479,13 +585,13 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
      * @return this instance.
      */
     public Builder withBufferAllocator(final BufferAllocator allocator) {
-      this.allocator = allocator
+      this.config.allocator = allocator
           .newChildAllocator("ArrowFlightSqlClientHandler", 0, allocator.getLimit());
       return this;
     }
 
     /**
-     * Adds the provided {@code factories} to the list of {@link #middlewareFactories} of this handler.
+     * Adds the provided {@code factories} to the list of middlewareFactories of this handler.
      *
      * @param factories the factories to add.
      * @return this instance.
@@ -495,14 +601,14 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
     }
 
     /**
-     * Adds the provided {@code factories} to the list of {@link #middlewareFactories} of this handler.
+     * Adds the provided {@code factories} to the list of middlewareFactories of this handler.
      *
      * @param factories the factories to add.
      * @return this instance.
      */
     public Builder withMiddlewareFactories(
         final Collection<FlightClientMiddleware.Factory> factories) {
-      this.middlewareFactories.addAll(factories);
+      this.config.middlewareFactories.addAll(factories);
       return this;
     }
 
@@ -516,12 +622,6 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
       return withCallOptions(Arrays.asList(options));
     }
 
-    public Builder withConfig(final ArrowFlightConnectionConfigImpl config) {
-      this.config = config;
-      this.options.add(config.toCallOption());
-      return this;
-    }
-
     /**
      * Adds the provided {@link CallOption}s to this handler.
      *
@@ -529,7 +629,7 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
      * @return this instance.
      */
     public Builder withCallOptions(final Collection<CallOption> options) {
-      this.options.addAll(options);
+      this.config.options.addAll(options);
       return this;
     }
 
@@ -540,62 +640,8 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
      * @throws SQLException on error.
      */
     public ArrowFlightSqlClientHandler build() throws SQLException {
-      FlightClient client = null;
-      try {
-        ClientIncomingAuthHeaderMiddleware.Factory authFactory = null;
-        if (username != null) {
-          authFactory =
-              new ClientIncomingAuthHeaderMiddleware.Factory(new ClientBearerHeaderHandler());
-          withMiddlewareFactories(authFactory);
-        }
-        final FlightClient.Builder clientBuilder = FlightClient.builder().allocator(allocator);
-        withMiddlewareFactories(new ClientCookieMiddleware.Factory());
-        middlewareFactories.forEach(clientBuilder::intercept);
-        Location location;
-        if (useEncryption) {
-          location = Location.forGrpcTls(host, port);
-          clientBuilder.useTls();
-        } else {
-          location = Location.forGrpcInsecure(host, port);
-        }
-        clientBuilder.location(location);
-
-        if (useEncryption) {
-          if (disableCertificateVerification) {
-            clientBuilder.verifyServer(false);
-          } else {
-            if (useSystemTrustStore) {
-              clientBuilder.trustedCertificates(
-                  ClientAuthenticationUtils.getCertificateInputStreamFromSystem(trustStorePassword));
-            } else if (trustStorePath != null) {
-              clientBuilder.trustedCertificates(
-                  ClientAuthenticationUtils.getCertificateStream(trustStorePath, trustStorePassword));
-            }
-          }
-        }
-
-        client = clientBuilder.build();
-        if (authFactory != null) {
-          options.add(
-              ClientAuthenticationUtils.getAuthenticate(client, username, password, authFactory));
-        } else if (token != null) {
-          options.add(
-              ClientAuthenticationUtils.getAuthenticate(
-                  client, new CredentialCallOption(new BearerCredentialWriter(token))));
-        }
-        return ArrowFlightSqlClientHandler.createNewHandler(client, config);
-
-      } catch (final IllegalArgumentException | GeneralSecurityException | IOException | FlightRuntimeException e) {
-        final SQLException originalException = new SQLException(e);
-        if (client != null) {
-          try {
-            client.close();
-          } catch (final InterruptedException interruptedException) {
-            originalException.addSuppressed(interruptedException);
-          }
-        }
-        throw originalException;
-      }
+      ConnectionManager conMan = new ConnectionManager(config);
+      return ArrowFlightSqlClientHandler.createNewHandler(conMan, config.options);
     }
   }
 }
