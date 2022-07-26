@@ -101,8 +101,7 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
    * @param flightInfo The {@link FlightInfo} instance from which to fetch results.
    * @return a {@code FlightStream} of results.
    */
-  public List<FlightStream> getStreams(final FlightInfo flightInfo) throws RuntimeException {
-    try {
+  public List<FlightStream> getStreams(final FlightInfo flightInfo) throws SQLException {
       ArrayList<FlightStream> streams = new ArrayList<>();
       for (FlightEndpoint ep : flightInfo.getEndpoints()) {
         URI uri = ep.getLocations().isEmpty() ? null : ep.getLocations().get(0).getUri();
@@ -110,9 +109,6 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
         streams.add(sqlClient.getStream(ep.getTicket(), getOptions()));
       }
       return streams;
-    } catch (Exception ex) {
-      throw new RuntimeException(ex);
-    }
   }
 
   /**
