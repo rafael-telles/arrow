@@ -69,7 +69,7 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
                               final Collection<CallOption> options) throws SQLException {
     this.connectionManager = Preconditions.checkNotNull(connectionManager);
     this.options.addAll(options);
-    FlightSqlClient sqlClient = connectionManager.getConnection(null);
+    FlightSqlClient sqlClient = connectionManager.acquireConnection(null);
     this.sqlClient = Preconditions.checkNotNull(sqlClient);
   }
 
@@ -105,8 +105,8 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
     try {
       ArrayList<FlightStream> streams = new ArrayList<>();
       for (FlightEndpoint ep : flightInfo.getEndpoints()) {
-        URI uri = ep.getLocations().size() > 0 ? ep.getLocations().get(0).getUri() : null;
-        FlightSqlClient sqlClient = this.connectionManager.getConnection(uri);
+        URI uri = ep.getLocations().isEmpty() ? null : ep.getLocations().get(0).getUri();
+        FlightSqlClient sqlClient = this.connectionManager.acquireConnection(uri);
         streams.add(sqlClient.getStream(ep.getTicket(), getOptions()));
       }
       return streams;
@@ -365,7 +365,7 @@ public final class ArrowFlightSqlClientHandler implements AutoCloseable {
      * @param uri the endpoint for which a connection should be established
      * @return the {@link FlightSqlClient} connection
      */
-    public FlightSqlClient getConnection(URI uri) throws SQLException {
+    public FlightSqlClient acquireConnection(URI uri) throws SQLException {
       FlightClient client = null;
       try {
         // Use default parameters if no URI provided
